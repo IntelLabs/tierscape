@@ -1,3 +1,5 @@
+**This file is a patch to the Linux kernel and is therefore licensed under the terms of the GNU General Public License version 2.**
+
 ## Instructions to apply the path and build kernel
 
 ### apply patch
