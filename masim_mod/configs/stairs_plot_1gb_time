@@ -1,0 +1,23 @@
+#regions
+s0, 1000000000
+s1, 1000000000
+s2, 1000000000
+s3, 1000000000
+
+#phases
+#region, random_access, stride, probability, mode
+phase 0
+5000
+s0, 0, 4096, 100, ro
+
+phase 1
+5000
+s1, 0, 4096, 100, ro
+
+phase 1
+5000
+s2, 0, 4096, 100, ro
+
+phase 1
+5000
+s3, 0, 4096, 100, ro

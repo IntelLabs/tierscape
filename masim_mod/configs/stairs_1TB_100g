@@ -1,0 +1,31 @@
+#regions 1TB = 1099511627776 bytes
+# 1GB = 1073741824 bytes
+s1,     100137445376
+hot1,   107374182400
+s2,     100137445376
+hot2, 	107374182400
+s3,     100137445376
+hot3, 	107374182400
+s4,     100137445376 
+hot4, 	107374182400
+s5,     100137445376 
+
+#name
+#time_ms
+#region, random_access, stride, probability, mode
+#phases
+phase 0
+200
+hot1, 0, 4096, 100, ro
+
+phase 1
+200
+hot2, 0, 4096, 100, ro
+
+phase 2
+200
+hot3, 0, 4096, 100, ro
+
+phase 3
+200
+hot4, 0, 4096, 100, ro
