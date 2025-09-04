@@ -1,0 +1,16 @@
+TODO
+
+1. Check if there is some post processing (within the kernel) when the ring buffer is full.
+    If there will be a count associated with an address if it is accessed many times.
+
+    Also, whether the kernle is also doing something.
+
+
+2. Dont save to file
+    PIPE it to SK_D.
+    The frequency of the profiler and when SK_D is triggered should be different
+
+
+
+The migration of pages should be at 60 seconds.. at least.
+

@@ -1,0 +1,13 @@
+evaluation/
+scripts/perf-all-fmt
+scripts/perf-trend-fmt
+perf.data*
+raw_perf_events
+raw_perf_events_processed.csv
+plotting/__pycache__/*
+temp.sh
+plots/pebs.pdf
+plots/pebs.png
+temp*
+tmp*
+log_lines.txt
