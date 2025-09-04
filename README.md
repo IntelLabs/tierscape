@@ -24,8 +24,8 @@ For the multiple byte-addressable tiers, we need to use the support present in t
 4. Execute the test cases.
 5. View the plots.
 
-
+<!-- 
 # il-opensource-template
 ![GitHub License](https://img.shields.io/github/license/IntelLabs/il-opensource-template)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/IntelLabs/il-opensource-template/badge)](https://scorecard.dev/viewer/?uri=github.com/IntelLabs/il-opensource-template)
-
+ -->
