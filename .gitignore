@@ -1,0 +1,6 @@
+logs
+setup.log
+.tierscape_venv
+.vscode
+evaluation/*
+memtier_benchmark

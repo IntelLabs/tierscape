@@ -1,0 +1,48 @@
+# =======================================
+# MASIM-related targets and variables
+# =======================================
+
+.PHONY: build_masim test_masim tier_masim_baseline tier_masim_hemem tier_masim_ilp tier_masim_waterfall tier_masim_all
+
+
+# Build MASIM
+build_masim:
+	@cd masim_mod; make clean; make -j 2>&1 | tee ../logs/make_masim.log
+	@echo "MASIM BUILT SUCCESSFULLY" >&2
+
+# Test MASIM
+test_masim:
+	@cd masim_mod; ./masim configs/stairs_plot_1gb 2>&1 | tee ../logs/masim_test.log
+	@echo "MASIM TESTS DONE" >&2
+
+# MASIM tier experiments
+#-----------------------------
+agg_mode=0
+
+tier_masim_baseline: check_tierscape_setup build_masim run_clean
+	@sudo bash skd_daemon/skd_profile_driver.sh perf_scripts/workloads/_masim.sh -1 $(agg_mode)
+
+tier_masim_hemem: check_tierscape_setup build_masim run_clean
+	@sudo bash skd_daemon/skd_profile_driver.sh perf_scripts/workloads/_masim.sh 0 $(agg_mode)
+
+tier_masim_ilp: check_tierscape_setup build_masim run_clean
+	@sudo bash skd_daemon/skd_profile_driver.sh perf_scripts/workloads/_masim.sh 1 $(agg_mode)
+
+tier_masim_waterfall: check_tierscape_setup build_masim run_clean
+	@sudo bash skd_daemon/skd_profile_driver.sh perf_scripts/workloads/_masim.sh 2 $(agg_mode)
+
+# ----------------------------------
+
+# Run all MASIM experiments
+# tier_masim_all: setup tier_masim_baseline tier_masim_hemem tier_masim_ilp tier_masim_waterfall
+tier_masim_all: setup
+	@echo "Starting MASIM experiments sequentially..." >&2
+	@$(MAKE) tier_masim_baseline
+	@echo "BASELINE experiment completed" >&2
+	@$(MAKE) tier_masim_hemem
+	@echo "HEMEM experiment completed" >&2
+	@$(MAKE) tier_masim_ilp
+	@echo "ILP experiment completed" >&2
+	@$(MAKE) tier_masim_waterfall
+	@echo "WATERFALL experiment completed" >&2
+	@echo "ALL MASIM EXPERIMENTS DONE" >&2

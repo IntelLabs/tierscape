@@ -1,0 +1,64 @@
+# =======================================
+# memcached-related targets and variables
+# =======================================
+
+
+
+
+# Build memcached
+install_memcached:
+	sudo apt install memcached 2>&1 | tee -a logs/make_memcached.lo
+	@echo "memcached BUILT SUCCESSFULLY" >&2
+
+install_memtier_benchmark:
+	@sudo apt install git
+	sudo apt-get install build-essential autoconf automake libpcre3-dev   libevent-dev pkg-config zlib1g-dev libssl-dev
+	@git clone https://github.com/RedisLabs/memtier_benchmark.git memtier_benchmark
+	@cd memtier_benchmark; autoreconf -ivf; ./configure; make; sudo make install
+
+check_memcached:
+# ensure memcached is running
+	@if ! pgrep memcached > /dev/null; then echo "memcached is not running. Please start memcached first."; exit 1; fi
+	@echo "memcached is running."
+
+# Test memcached
+start_memcached:
+	
+	@sudo bash exec_scripts/start_benchmark_server.sh memcached
+	@sleep 2
+	@echo "Memcached started"
+
+load_memcached: start_memcached
+	@sudo bash exec_scripts/load_scripts/load_memtier_memcached_40GB_4K.sh
+	@echo "Memcached load done"
+
+# memcached tier experiments
+#-----------------------------
+agg_mode=0
+
+tier_memcached_memtier_baseline: check_tierscape_setup check_memcached
+	@sudo bash skd_daemon/skd_profile_driver.sh perf_scripts/workloads/_memtier_memcached_ops.sh -1 $(agg_mode)
+
+tier_memcached_memtier_hemem: check_tierscape_setup check_memcached
+	@sudo bash skd_daemon/skd_profile_driver.sh perf_scripts/workloads/_memtier_memcached_ops.sh 0 $(agg_mode)
+
+tier_memcached_memtier_ilp: check_tierscape_setup check_memcached
+	@sudo bash skd_daemon/skd_profile_driver.sh perf_scripts/workloads/_memtier_memcached_ops.sh 1 $(agg_mode)
+
+tier_memcached_memtier_waterfall: check_tierscape_setup check_memcached
+	@sudo bash skd_daemon/skd_profile_driver.sh perf_scripts/workloads/_memtier_memcached_ops.sh 2 $(agg_mode)
+
+# ----------------------------------
+
+# Run all memcached experiments
+tier_memcached_memtier_all: setup
+	@echo "Starting memcached experiments sequentially..." >&2
+	@$(MAKE) tier_memcached_memtier_baseline
+	@echo "BASELINE experiment completed" >&2
+	@$(MAKE) tier_memcached_memtier_hemem
+	@echo "HEMEM experiment completed" >&2
+	@$(MAKE) tier_memcached_memtier_ilp
+	@echo "ILP experiment completed" >&2
+	@$(MAKE) tier_memcached_memtier_waterfall
+	@echo "WATERFALL experiment completed" >&2
+	@echo "ALL memcached EXPERIMENTS DONE" >&2

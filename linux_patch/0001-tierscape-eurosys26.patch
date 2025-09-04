@@ -1,7 +1,7 @@
-From ce81730f49a7afaf2081a123d2cb4b2fba9ccd65 Mon Sep 17 00:00:00 2001
+From e5dc5f7607441f145f3c1baf0b61720523cf89f0 Mon Sep 17 00:00:00 2001
 From: Sandeep Kumar <sandeep4.kumar@intel.com>
 Date: Tue, 2 Sep 2025 04:48:30 +0530
-Subject: [PATCH] tierscape eurosys26
+Subject: [PATCH 1/2] tierscape eurosys26
 
 ---
  drivers/block/zram/zram_drv.c |    6 +-
@@ -11892,5 +11892,5 @@ index 000000000..632eaceda
 +# end of Kernel Testing and Coverage
 +# end of Kernel hacking
 -- 
-2.34.1
+2.43.0
 

@@ -7,8 +7,8 @@ https://github.com/google/or-tools/blob/stable/cmake/README.md
 
 ````
 wget https://github.com/google/or-tools/archive/refs/tags/v9.12.tar.gz
-tar -xzvf  <tar file>
-cd <dir>
+tar -xzvf  v9.12.tar.gz
+cd or-tools-9.12/
 
 cmake -S. -Bbuild -DBUILD_DEPS:BOOL=ON
 cmake --build build --parallel

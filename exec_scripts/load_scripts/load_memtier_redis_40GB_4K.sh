@@ -1,0 +1,1 @@
+memtier_benchmark --server=127.0.0.1 --port=6379  -c 1 -t 60 -n 10485760 --data-size=4083 --ratio=1:0 --key-pattern=S:S --key-maximum=10485760
