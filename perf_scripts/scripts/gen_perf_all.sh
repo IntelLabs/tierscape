@@ -34,7 +34,7 @@ generate_file(){
 
 }
 
-perf list > ${TMP_FILE}
+${PERF_BIN} list > ${TMP_FILE}
 
 generate_file ${SCRIPT_DIR}/perf-all-tot ${SCRIPT_DIR}/perf-all-fmt
 generate_file ${SCRIPT_DIR}/perf-trend-tot ${SCRIPT_DIR}/perf-trend-fmt

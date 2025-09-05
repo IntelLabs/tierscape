@@ -1,5 +1,10 @@
 all_checks_ok=1
 
+# get script dir
+SANITY_SCRIPT_DIR=$(dirname $(realpath $0))
+
+
+
 if [ $EUID -ne 0 ]
     then echo "Must run as root or with sudo."
     exit 1
@@ -51,14 +56,16 @@ fi
 
 check_path() {
     # create an array of path and ensure all of the exists
-    # paths=(
-    #     $MASIM_HOME
+    paths=(
+        ${PS_HOME_DIR}
+        ${ILP_HOME_DIR}
+        ${PERF_BIN}
+        $MASIM_HOME
+        # $REDIS_CONF
+        # $DAMO_HOME
+        # $YCSB_HOME
         
-    #     $REDIS_CONF
-    #     $DAMO_HOME
-    #     $YCSB_HOME
-        
-    # )
+    )
     # appent /tmp to paths
     if [[ $ENABLE_NTIER -eq 1 ]]; then
         echo "ENABLE_NTIER is 1. Appending path"
@@ -70,6 +77,7 @@ check_path() {
     fi
 
     for path in "${paths[@]}"; do
+        echo "Checking path: $path"
         if [[ ! -d $path ]]; then
 
             # check if this is a file
@@ -84,12 +92,23 @@ check_path() {
     done
 }
 
+# function check command /usr/bin/perf list returns 0
+function check_perf() {
+    ${PERF_BIN} list &>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "Error: perf command not found"
+        all_checks_ok=0
+    fi
+}
+
 
 
 check_all_checks_ok() {
     if [[ $all_checks_ok -eq 0 ]]; then
         echo "Some checks failed. Exiting"
         exit 1
+    else
+        echo "All checks passed"
     fi
 }
 
@@ -113,5 +132,6 @@ function err() {
 # check_machine
 flush_trace_file
 check_path
+check_perf
 check_all_checks_ok
 THREADS=$(nproc)
