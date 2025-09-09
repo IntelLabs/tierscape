@@ -27,8 +27,8 @@ DISABLE_MIGRATION=0
 
 # ensure BASE_DIR is set
 if [ -z "$BASE_DIR" ]; then
-    echo "Setting BASE_DIR to $BASE_DIR"
     BASE_DIR=$(dirname $(realpath $0))/../
+    echo "Setting BASE_DIR to $BASE_DIR"
 fi
 
 PS_HOME_DIR="${BASE_DIR}/perf_scripts"

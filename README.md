@@ -169,36 +169,34 @@ $ uname -r
 
 ```bash
 $ sudo bash skd_daemon/shell_scripts/setup_ntiers.sh
-Setting BASE_DIR to
 Using ZRAM
 Removing zram
 Setting up zram
 FAST_NODE: 0
 SLOW_NODE: 1
 Disabling the prefetching
-skd_daemon/shell_scripts/setup_ntiers.sh: line 41: echo: write error: No such file or directory
-skd_daemon/shell_scripts/setup_ntiers.sh: line 45: echo: write error: No such file or directory
 kernel.zswap_print_stat = 1
-[73430.834080] zswap: compressor zstd not available
-[73430.834132] zswap: ..
+[ 3904.686103] zswap: Looking for a zpool zsmalloc zstd 0
+[ 3904.686104] zswap: It looks like we already have a pool. zsmalloc zstd 0
+[ 3904.686104] zswap: zswap: Adding zpool Type zsmalloc Compressor zstd BS 0
+[ 3904.686105] zswap: Total pools now 4
+[ 3904.686117] zswap: Looking for a zpool zsmalloc lzo 0
+[ 3904.686118] zswap: using existing pool zsmalloc lzo 0
+[ 3904.686125] zswap: ..
                  Request for a new pool: pool and compressor is zsmalloc lzo backing store value is 0
-[73430.834134] zswap: Looking for a zpool zsmalloc lzo 0
-[73430.834135] zswap: It looks like we already have a pool. zsmalloc lzo 0
-[73430.834136] zswap: zswap: Adding zpool Type zsmalloc Compressor lzo BS 0
-[73430.834136] zswap: Total pools now 3
-[73430.834163] zswap: ..
-                 Request for a new pool: pool and compressor is zsmalloc lzo backing store value is 0
-[73430.834164] zswap: Looking for a zpool zsmalloc lzo 0
-[73430.834164] zswap: It looks like we already have a pool. zsmalloc lzo 0
-[73430.834165] zswap: zswap: Adding zpool Type zsmalloc Compressor lzo BS 0
-[73430.834166] zswap: Total pools now 3
-[73430.834717]
+[ 3904.686125] zswap: Looking for a zpool zsmalloc lzo 0
+[ 3904.686126] zswap: It looks like we already have a pool. zsmalloc lzo 0
+[ 3904.686126] zswap: zswap: Adding zpool Type zsmalloc Compressor lzo BS 0
+[ 3904.686126] zswap: Total pools now 4
+[ 3904.686745]
                ------------
-               Total zswap pools 3
-[73430.834719] zswap: Tier CData       pool        compressor  backing     Pages       isCPUComp   Faults
-[73430.834722] zswap: 0    0           zsmalloc    lzo         0           0           true        0
-[73430.834724] zswap: 1    0           zsmalloc    lzo         1           0           true        0
-[73430.834725] zswap: 2    0           zbud        lzo         0           0           true        0
+               Total zswap pools 4
+[ 3904.686747] zswap: Tier CData       pool        compressor  backing     Pages       isCPUComp   Faults
+[ 3904.686749] zswap: 0    0           zsmalloc    lzo         0           0           true        0
+[ 3904.686751] zswap: 1    0           zsmalloc    zstd        0           0           true        0
+[ 3904.686752] zswap: 2    0           zsmalloc    zstd        1           0           true        0
+[ 3904.686753] zswap: 3    0           zbud        zstd        0           0           true        0
+
 
 ```
 
