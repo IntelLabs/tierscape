@@ -26,11 +26,14 @@ static const TierConfigData TIER_CONFIGS[] = {
     {0, false, "na", "na", DRAM, DRAM, true, 2},
     {1, false, "na", "na", OPTANE, OPTANE, true, 4},
     
+#ifdef ENABLE_NTIER
+// sdf
     // Compressed tiers (commented out - can be enabled as needed)
-    // {COMPRESSED_TIERS_BASED+0, true, "zsmalloc", "lzo", COMPRESSED, DRAM, true, 5},
-    // {COMPRESSED_TIERS_BASED+1, true, "zsmalloc", "zstd", COMPRESSED, OPTANE, true, 7},
-    // {COMPRESSED_TIERS_BASED+2, true, "zsmalloc", "zstd", COMPRESSED, DRAM, true, 6},
-    // {COMPRESSED_TIERS_BASED+3, true, "zbud", "lzo", COMPRESSED, DRAM, true, 8},
+    {COMPRESSED_TIERS_BASED+0, true, "zsmalloc", "lzo", COMPRESSED, DRAM, true, 5},
+    {COMPRESSED_TIERS_BASED+2, true, "zsmalloc", "zstd", COMPRESSED, DRAM, true, 6},
+    {COMPRESSED_TIERS_BASED+1, true, "zsmalloc", "zstd", COMPRESSED, OPTANE, true, 7},
+    {COMPRESSED_TIERS_BASED+3, true, "zbud", "zstd", COMPRESSED, DRAM, true, 8},
+#endif
 };
 
 #define NUM_TIER_CONFIGS (sizeof(TIER_CONFIGS) / sizeof(TIER_CONFIGS[0]))

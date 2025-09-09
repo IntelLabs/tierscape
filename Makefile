@@ -40,9 +40,9 @@ python_clean:
 
 # makesetup target to run setup_tierscape.sh with sudo
 setup:
-	@echo "Running setup_tierscape.sh with sudo..."
+	@echo "Running setup_tierscape.sh with sudo...${ENABLE_NTIER}"
 	@mkdir -p logs
-	@sudo bash setup_tierscape.sh > logs/setup.log
+	@sudo bash setup_tierscape.sh ${ENABLE_NTIER} > logs/setup_tierscape.log
 
 # =======================================
 	

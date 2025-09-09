@@ -11,6 +11,7 @@ import re
 import sys
 sys.path.append(".")
 from plot_utils import *
+from tier_config_simple import get_dram_optane_info
 
 
 # create the argument parser
@@ -33,6 +34,25 @@ else:
         exit(1)
 
 print(f"=====================\nPlotting {os.path.basename(__file__)}")
+
+# Load DRAM/OPTANE configuration from shared config
+try:
+    dram_optane_config = get_dram_optane_info()
+    print(f"Loaded DRAM/OPTANE config: {dram_optane_config}")
+
+    total_byte_tiers = len(dram_optane_config)
+    fast_tier_idxes = [tier['virt_id'] for tier in dram_optane_config.values() if tier and tier['mem_type'] == 0]  # DRAM
+    slow_tier_idxes = [tier['virt_id'] for tier in dram_optane_config.values() if tier and tier['mem_type'] == 1]  # OPTANE
+
+    print("Total byte-addressable tiers:", total_byte_tiers)
+    print(f"Fast tier indices (DRAM): {fast_tier_idxes}")
+    print(f"Slow tier indices (OPTANE): {slow_tier_idxes}")
+except Exception as e:
+    print(f"Warning: Failed to load tier config: {e}")
+    dram_optane_config = None
+    # fatal error
+    print("Error: Could not determine DRAM/OPTANE tier indices from config. Exiting.")
+    exit(1)
 
 
 data = []
@@ -137,8 +157,17 @@ for plot_data in ["nr_compressed_size", "nr_pages", "faults", "actual_size"]:
 
 # print(df)
 # sumup nr_compressed_size based on backing store.. if 0 or  1 then in dram_usage 
-dram_usage = df[(df['backing_store'] == 0) | (df['backing_store'] == 1)][['timestamp','nr_compressed_size']]
-optane_usage = df[(df['backing_store'] == 2) | (df['backing_store'] == 3)][['timestamp','nr_compressed_size']]
+# dram_usage = df[(df['backing_store'] == 0) | (df['backing_store'] == 1)][['timestamp','nr_compressed_size']]
+# optane_usage = df[(df['backing_store'] == 2) | (df['backing_store'] == 3)][['timestamp','nr_compressed_size']]
+
+# use fast_tier_idxes and slow_tier_idxes if available
+if fast_tier_idxes is not None and slow_tier_idxes is not None and len(fast_tier_idxes) > 0 and len(slow_tier_idxes) > 0:
+    dram_usage = df[df['backing_store'].isin(fast_tier_idxes)][['timestamp','nr_compressed_size']]
+    optane_usage = df[df['backing_store'].isin(slow_tier_idxes)][['timestamp','nr_compressed_size']]
+else:
+    # fatal error
+    print("Error: Could not determine DRAM/OPTANE tier indices from config. Exiting.")
+    exit(1)
 
 # sum them based on timestamp
 dram_usage = dram_usage.groupby('timestamp').sum()

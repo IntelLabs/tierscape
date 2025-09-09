@@ -2,6 +2,16 @@ if [ $EUID -ne 0 ]
 then echo "Must run as root or with sudo."
     exit 1
 fi
+
+# if there is an argument, it is ENABLE_NTIER
+if [ $# -eq 1 ]
+then
+    ENABLE_NTIER=$1
+else
+    ENABLE_NTIER=0
+fi
+echo "Setup Tierscape ENABLE_NTIER: $ENABLE_NTIER"
+
 BASE_DIR=$(dirname $(realpath $0))
 echo "BASE_DIR: $BASE_DIR"
 # ${BASE_DIR}
@@ -55,7 +65,7 @@ function configure_ilp(){
 
 function configure_skd_daemon(){
     cd ${BASE_DIR}/skd_daemon/sk_daemon
-    make clean; make -j 2>&1 | tee ${BASE_DIR}/logs/make_skd.log
+    make clean; make -j ENABLE_NTIER=${ENABLE_NTIER} 2>&1 | tee ${BASE_DIR}/logs/make_skd.log
     check_last_cmd_ret_code $? make_skd
 }
 

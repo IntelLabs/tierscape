@@ -24,7 +24,7 @@ check_path() {
     )
     # appent /tmp to paths
     if [[ $ENABLE_NTIER -eq 1 ]]; then
-        echo "ENABLE_NTIER is 1. Appending path"
+        echo "Sanity check: ENABLE_NTIER is 1. Appending path"
         paths+=($SKD_HOME)
         paths+=("/sys/module/zswap/parameters/ntier_enabled")
         paths+=("${HOME_DIR}/shell_scripts/setup_ntiers.sh")

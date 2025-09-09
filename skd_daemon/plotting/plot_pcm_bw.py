@@ -27,7 +27,13 @@ if args.input_file is None:
     print(f"ERROR: {os.path.basename(__file__)}: Input file does not exist")
     exit(1)
 else:
-    print(f"=====================\nPlotting {os.path.basename(__file__)}")
+    # check if the file exists
+    if not os.path.isfile(args.input_file):
+        print(f"ERROR: {os.path.basename(__file__)}: Input file does not exist")
+        exit(1)
+
+
+print(f"=====================\nPlotting {os.path.basename(__file__)}")
 
 
 directory = os.path.dirname(args.input_file)    

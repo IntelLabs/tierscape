@@ -160,7 +160,7 @@ plt.grid()
 
 format_axis(ax,lfont=lfont-6)
 
-plt.savefig(f"{directory}/plot_numastat.png", dpi=300,bbox_inches="tight")
+# plt.savefig(f"{directory}/plot_numastat.png", dpi=300,bbox_inches="tight")
 
 # ===============================
 color_array=["blue","red","green","orange","purple","pink","brown"]
