@@ -44,23 +44,23 @@ You can run specific tiering experiments:
 
 ```bash
 # Baseline (no tiering)
-make tier_masim_baseline
+make tier_masim_baseline 
 
 # HeMem tiering strategy
-make tier_masim_hemem
+make tier_masim_hemem agg_mode=0   # 0 conservating 1 moderate 2 aggressive
 
 # ILP-based tiering strategy
-make tier_masim_ilp
+make tier_masim_ilp agg_mode=0    # 0 conservating 1 moderate 2 aggressive
 
 # Waterfall tiering strategy
-make tier_masim_waterfall
+make tier_masim_waterfall agg_mode=0   # 0 conservating 1 moderate 2 aggressive
 ```
 
 #### Run All MASIM Experiments
 To run all experiments sequentially:
 ```bash
 ## This will execute all four tiering strategies (baseline, hemem, ilp, waterfall) in sequence.
-make tier_masim_all
+make tier_masim_all agg_mode=0   # 0 conservating 1 moderate 2 aggressive
 ```
 
 See [Understanging the results](#3-understanding-the-results) section to interpret the results.
@@ -96,18 +96,18 @@ make load_memcached     # Loads 40GB dataset with 4K objects
 make tier_memcached_memtier_baseline
 
 # HeMem tiering strategy
-make tier_memcached_memtier_hemem
+make tier_memcached_memtier_hemem agg_mode=0   # 0 conservating 1 moderate 2 aggressive
 
 # ILP-based tiering strategy
-make tier_memcached_memtier_ilp
+make tier_memcached_memtier_ilp agg_mode=0    # 0 conservating 1 moderate 2 aggressive
 
 # Waterfall tiering strategy
-make tier_memcached_memtier_waterfall
+make tier_memcached_memtier_waterfall agg_mode=0   # 0 conservating 1 moderate 2 aggressive
 ```
 
 3. **Run all memcached experiments:**
 ```bash
-make tier_memcached_memtier_all
+make tier_memcached_memtier_all agg_mode=0   # 0 conservating 1 moderate 2 aggressive
 ```
 
 
@@ -221,7 +221,53 @@ The experiments generate data comparing different tiering strategies:
 - **ILP (1)**: Integer Linear Programming-based optimal tiering
 - **Waterfall (2)**: Waterfall-based tiering strategy
 
-> **Note:** Instructions for building and running with a custom Linux kernel will be added soon.
+### Dir structure and figures
+
+Example: ``perflog-ILP-F10000-HT.9-R0-PT2-W5-20250909-200453``
+Breakdown of the dir name:
+- `perflog`: Prefix indicating performance logs
+- `ILP`: Tiering strategy used (Baseline, HeMem, ILP, Waterfall)
+- `F10000`: PEBS frequency (10000)
+- `HT.9`: Hotness threshold (0.9)
+- `R0`: Remote mode (0 disabled 1 enabled)
+- `PT2`: Number of push threads to move data around
+- `W5`: Profile window in seconds
+- `20250909-200453`: Timestamp of the experiment run
+
+Exmplae: `perflog-WATERFALL-F10000-HT25-PT2-W5-20250909-195830`
+
+Breakdown of the dir name:
+- `perflog`: Prefix indicating performance logs
+- `WATERFALL`: Tiering strategy used (Baseline, HeMem, ILP, Waterfall)
+- `F10000`: PEBS frequency (10000)
+- `HT25`: Hotness threshold (25 percentile)
+- `PT2`: Number of push threads to move data around
+- `W5`: Profile window in seconds
+- `20250909-195830`: Timestamp of the experiment run
+
+Similarly for hemem.
+
+#### Figures
+After runing each experiments, there will be plot directory created inside the experiment directory.
+
+- `plot_numastat_numa_nodes.png`: NUMA distribution of memory usage over time
+- `plot_psi.png`: Pressure Stall Information over time
+- `plot_regions_curr_tier.png`: The current tier distribution of memory regions over time as seen by Tierscape
+- `plot_regions_curr_tier_sorted.png`: The current tier distribution of memory regions over time as seen by Tierscape (sorted by hotness)
+- `plot_regions_dst_tier.png`: The destination tier distribution of memory regions over time as seen by Tierscape
+- `plot_regions_dst_tier_sorted.png`: The destination tier distribution of memory regions over time as seen by Tierscape (sorted by hotness)
+- `plot_regions_hotness.png`: The hotness distribution of memory regions over time as seen reported by PEBS
+- `plot_stacked_tco_sep.png`: Stacked TCO breakdown over time
+- `plot_stacked_zswap_usage.png`: Stacked zswap usage breakdown over time
+- `plot_zswap_faults.png`: zswap faults over time
+- `plot_zswap_nr_compressed_size.png`: zswap compressed size over time
+- `plot_zswap_nr_pages.png`: zswap number of pages over time
+- `status_VmRSS.png`: Resident Set Size over time
+- `vmstat_pgmigrate_success.png`: Successful page migrations over time
+
+
+## Reproducing the results in the paper
+TODO
 
 
 

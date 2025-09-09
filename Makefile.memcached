@@ -34,7 +34,8 @@ load_memcached: start_memcached
 
 # memcached tier experiments
 #-----------------------------
-agg_mode=0
+# 0 conservating 1 moderate 2 aggressive
+agg_mode?=0
 
 tier_memcached_memtier_baseline: check_tierscape_setup check_memcached
 	@sudo bash skd_daemon/skd_profile_driver.sh perf_scripts/workloads/_memtier_memcached_ops.sh -1 $(agg_mode)
