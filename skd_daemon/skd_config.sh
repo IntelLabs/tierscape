@@ -5,7 +5,7 @@ NTIER_FIXED_WATERFALL=2
 
 
 
-EXP_NAME="exp_skd_eurosys26_auto"
+EXP_NAME="exp_eurosys26_EN${ENABLE_NTIER}"
 PERF_BIN="/data/sandeep/idxd/tools/perf/perf"
 
 SKD_PERF_EVENTS="-e cpu/event=0xd0,umask=0x81/ppu -e cpu/event=0xd0,umask=0x82/ppu -e cpu/event=0xd0,umask=0x11/ppu -e cpu/event=0xd0,umask=0x12/ppu"

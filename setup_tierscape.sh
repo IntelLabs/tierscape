@@ -10,6 +10,7 @@ then
 else
     ENABLE_NTIER=0
 fi
+export ENABLE_NTIER
 echo "Setup Tierscape ENABLE_NTIER: $ENABLE_NTIER"
 
 BASE_DIR=$(dirname $(realpath $0))
@@ -75,6 +76,7 @@ function export_tierscape_env(){
     echo "PERF_BIN=${PERF_BIN}" >> /tmp/tierscape_env.sh
     echo "PS_HOME_DIR=${PS_HOME_DIR}" >> /tmp/tierscape_env.sh
     echo "ILP_HOME_DIR=${ILP_HOME_DIR}" >> /tmp/tierscape_env.sh
+    echo "ENABLE_NTIER=${ENABLE_NTIER}" >> /tmp/tierscape_env.sh
 
     # cat to stderr
     cat /tmp/tierscape_env.sh >&2

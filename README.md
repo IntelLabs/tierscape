@@ -201,7 +201,15 @@ kernel.zswap_print_stat = 1
 ```
 
 ## Executing Experiments with Kernel Patches
-TODO
+
+Rebuild TierScape with kernel patches enabled:
+```bash
+$ cd <root dir of repo>
+$ make setup ENABLE_NTIER=1
+```
+Run MASIM or memcached experiments as described in the [Quick Start](#2-quick-start-without-kernel-patches) section.
+
+The results will be saved in the dir witn suffix `_EN1` indicating kernel patches are enabled.
 
 ## 4. Understanding the Results
 After running experiments, results are stored in the following locations:
