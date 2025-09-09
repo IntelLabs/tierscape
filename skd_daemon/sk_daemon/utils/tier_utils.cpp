@@ -69,15 +69,9 @@ TIERS_INFO::TIERS_INFO() {
 
 	int iscpu = 1;
 
-	// for sage and DEFAULT
-	// OPTANE_PREFERRED = 1;
 
 	tiers.insert(tiers.begin(), new TierInfo(0, DRAM, 2));
 	tiers.insert(tiers.begin(), new TierInfo(1, OPTANE, 4));
-
-	// Four NUMA nodes.
-	// tiers.insert(tiers.begin(), new TierInfo(1, DRAM, 2));
-	// tiers.insert(tiers.begin(), new TierInfo(3, OPTANE, 4));
 
 	// tiers.insert(tiers.begin(), new TierInfo(COMPRESSED_TIERS_BASED+0,  "zsmalloc", "lzo", DRAM, iscpu,  5));
 	// tiers.insert(tiers.begin(), new TierInfo(COMPRESSED_TIERS_BASED+1,  "zsmalloc", "zstd", OPTANE, iscpu,  7));
@@ -85,31 +79,12 @@ TIERS_INFO::TIERS_INFO() {
 	// tiers.insert(tiers.begin(), new TierInfo(COMPRESSED_TIERS_BASED+1,  "zsmalloc", "zstd", DRAM, iscpu, 6));
 	// tiers.insert(tiers.begin(), new TierInfo(COMPRESSED_TIERS_BASED+3,  "zbud", "lzo", DRAM, iscpu, 8 ));
 
-	// tiers.push_back(new TierInfo(1, 3, "zsmalloc", "zstd", optane_backing_store, iscpu, optane_tier_cost, 8));
 
-	/*      // for pagerank -- prefer compressed Tiers
-	    OPTANE_PREFERRED = 0;
-	    tiers.insert(tiers.begin(), new TierInfo(PHY_DRAM_TIER_ID, 0, "dram", "na", dram_backing_store, iscpu, dram_tier_cost, 1));
-	    tiers.insert(tiers.begin(), new TierInfo(PHY_OPTANE_TIER_ID, 1, "optane", "na", optane_backing_store, iscpu, 30, 3));
 
-	    tiers.push_back(new TierInfo(0, 2, "zsmalloc", "lzo", dram_backing_store, iscpu, dram_tier_cost, 10));
-	    tiers.push_back(new TierInfo(1, 3, "zsmalloc", "zstd", optane_backing_store, iscpu, optane_tier_cost, 12));
-	 */
-
-	/*  FOR BFS
-	    OPTANE_PREFERRED=0;
-	    tiers.insert(tiers.begin(), new TierInfo(PHY_DRAM_TIER_ID, 0, "dram", "na", dram_backing_store, iscpu, dram_backing_store, 1));
-	    tiers.insert(tiers.begin(), new TierInfo(PHY_OPTANE_TIER_ID, 1, "optane", "na", optane_backing_store, iscpu, optane_tier_cost, 15));
-	    tiers.push_back(new TierInfo(0, 2, "zsmalloc", "lzo", dram_backing_store, iscpu, dram_backing_store, 3));
-	    tiers.push_back(new TierInfo(1, 3, "zsmalloc", "zstd", optane_backing_store, iscpu, optane_tier_cost, 8));
-	 */
-
-	/* this is required, as we are inserting in anyway */
+	/* this is required, as we are inserting in any prder */
 	std::sort(tiers.begin(), tiers.end(), compare_tiers);
 
 	for (struct TierInfo *t : tiers) {
-		// fprintf(stderr, "Tier: %d(%d) type %s comp %s BS %d compression_ratio %f\n", t->virt_tier_id, t->phy_tier_id, t->type.c_str(), t->compressor.c_str(), t->backing_store, t->compression_ratio);
-
 		fprintf(stderr, "Tier: %d type %s comp %s BS %d compression_ratio %f cost %d latency %d\n", t->get_virt_tier_id(), get_mem_type_string(t->type), t->compressor.c_str(), t->backing_store, t->compression_ratio, t->tier_cost, t->tier_latency);
 	}
 }
