@@ -1,34 +1,47 @@
-From e5dc5f7607441f145f3c1baf0b61720523cf89f0 Mon Sep 17 00:00:00 2001
+From 8d955619e152eabd14acefa19c4c819c053cf96a Mon Sep 17 00:00:00 2001
 From: Sandeep Kumar <sandeep4.kumar@intel.com>
 Date: Tue, 2 Sep 2025 04:48:30 +0530
-Subject: [PATCH 1/2] tierscape eurosys26
+Subject: [PATCH] tierscape eurosys26
 
 ---
- drivers/block/zram/zram_drv.c |    6 +-
- drivers/nvdimm/pfn_devs.c     |    4 +-
- include/linux/mm.h            |   17 +
- include/linux/mm_types.h      |    3 +
- include/linux/sched/sysctl.h  |   16 +
- include/linux/zpool.h         |   56 +-
- include/linux/zsmalloc.h      |    7 +-
- include/trace/events/kmem.h   |  188 +
- kernel/sysctl.c               |   44 +
- mm/Kconfig                    |   10 +
- mm/Makefile                   |    1 +
- mm/madvise.c                  |  554 ++-
- mm/memory.c                   |   10 +
- mm/ntier_helpers.c            |   81 +
- mm/swap_state.c               |    6 +
- mm/z3fold.c                   |    3 +
- mm/zbud.c                     |   80 +-
- mm/zpool.c                    |   43 +-
- mm/zsmalloc.c                 |  169 +-
- mm/zswap.c                    |  666 ++-
- tierscape_config              | 8729 +++++++++++++++++++++++++++++++++
- 21 files changed, 10516 insertions(+), 177 deletions(-)
+ arch/x86/entry/syscalls/syscall_64.tbl |    1 +
+ drivers/block/zram/zram_drv.c          |    6 +-
+ drivers/nvdimm/pfn_devs.c              |    4 +-
+ include/linux/mm.h                     |   17 +
+ include/linux/mm_types.h               |    3 +
+ include/linux/sched/sysctl.h           |   16 +
+ include/linux/zpool.h                  |   56 +-
+ include/linux/zsmalloc.h               |    7 +-
+ include/trace/events/kmem.h            |  188 +
+ kernel/sysctl.c                        |   44 +
+ mm/Kconfig                             |   10 +
+ mm/Makefile                            |    1 +
+ mm/madvise.c                           |  554 +-
+ mm/memory.c                            |   10 +
+ mm/ntier_helpers.c                     |   81 +
+ mm/swap_state.c                        |    6 +
+ mm/z3fold.c                            |    3 +
+ mm/zbud.c                              |   80 +-
+ mm/zpool.c                             |   43 +-
+ mm/zsmalloc.c                          |  169 +-
+ mm/zswap.c                             |  666 +-
+ tierscape_config                       | 8739 ++++++++++++++++++++++++
+ 22 files changed, 10527 insertions(+), 177 deletions(-)
  create mode 100644 mm/ntier_helpers.c
  create mode 100644 tierscape_config
 
+diff --git a/arch/x86/entry/syscalls/syscall_64.tbl b/arch/x86/entry/syscalls/syscall_64.tbl
+index c84d12608..af4f1d69e 100644
+--- a/arch/x86/entry/syscalls/syscall_64.tbl
++++ b/arch/x86/entry/syscalls/syscall_64.tbl
+@@ -372,6 +372,7 @@
+ 448	common	process_mrelease	sys_process_mrelease
+ 449	common	futex_waitv		sys_futex_waitv
+ 450	common	set_mempolicy_home_node	sys_set_mempolicy_home_node
++452 common  migrate_dst_tier        sys_migrate_dst_tier
+ 
+ #
+ # Due to a historical design error, certain syscalls are numbered differently
 diff --git a/drivers/block/zram/zram_drv.c b/drivers/block/zram/zram_drv.c
 index cb253d80d..388332790 100644
 --- a/drivers/block/zram/zram_drv.c
@@ -3158,26 +3171,27 @@ index cdf6950fc..a907ba311 100644
  	return 0;
 diff --git a/tierscape_config b/tierscape_config
 new file mode 100644
-index 000000000..632eaceda
+index 000000000..6597bfd18
 --- /dev/null
 +++ b/tierscape_config
-@@ -0,0 +1,8729 @@
+@@ -0,0 +1,8739 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86 5.17.0 Kernel Configuration
 +#
-+CONFIG_CC_VERSION_TEXT="gcc (GCC) 9.3.1 20200408 (Red Hat 9.3.1-2)"
++CONFIG_CC_VERSION_TEXT="gcc (Ubuntu 11.4.0-9ubuntu1) 11.4.0"
 +CONFIG_CC_IS_GCC=y
-+CONFIG_GCC_VERSION=90301
++CONFIG_GCC_VERSION=110400
 +CONFIG_CLANG_VERSION=0
 +CONFIG_AS_IS_GNU=y
-+CONFIG_AS_VERSION=23101
++CONFIG_AS_VERSION=24200
 +CONFIG_LD_IS_BFD=y
-+CONFIG_LD_VERSION=23101
++CONFIG_LD_VERSION=24200
 +CONFIG_LLD_VERSION=0
 +CONFIG_CC_CAN_LINK=y
 +CONFIG_CC_CAN_LINK_STATIC=y
 +CONFIG_CC_HAS_ASM_GOTO=y
++CONFIG_CC_HAS_ASM_GOTO_OUTPUT=y
 +CONFIG_CC_HAS_ASM_INLINE=y
 +CONFIG_CC_HAS_NO_PROFILE_FN_ATTR=y
 +CONFIG_IRQ_WORK=y
@@ -3503,6 +3517,8 @@ index 000000000..632eaceda
 +CONFIG_X86_MPPARSE=y
 +# CONFIG_GOLDFISH is not set
 +CONFIG_RETPOLINE=y
++CONFIG_CC_HAS_SLS=y
++# CONFIG_SLS is not set
 +CONFIG_X86_CPU_RESCTRL=y
 +CONFIG_X86_EXTENDED_PLATFORM=y
 +# CONFIG_X86_NUMACHIP is not set
@@ -3612,8 +3628,6 @@ index 000000000..632eaceda
 +CONFIG_NODES_SHIFT=10
 +CONFIG_ARCH_SPARSEMEM_ENABLE=y
 +CONFIG_ARCH_SPARSEMEM_DEFAULT=y
-+CONFIG_NTIER_MEMORY=y
-+CONFIG_NTIER_MEMORY_TOOLS=y
 +CONFIG_ARCH_SELECT_MEMORY_MODEL=y
 +# CONFIG_ARCH_MEMORY_PROBE is not set
 +CONFIG_ARCH_PROC_KCORE_TEXT=y
@@ -4163,12 +4177,12 @@ index 000000000..632eaceda
 +CONFIG_MEM_SOFT_DIRTY=y
 +CONFIG_ZSWAP=y
 +# CONFIG_ZSWAP_COMPRESSOR_DEFAULT_DEFLATE is not set
-+CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZO=y
++# CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZO is not set
 +# CONFIG_ZSWAP_COMPRESSOR_DEFAULT_842 is not set
 +# CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZ4 is not set
 +# CONFIG_ZSWAP_COMPRESSOR_DEFAULT_LZ4HC is not set
-+# CONFIG_ZSWAP_COMPRESSOR_DEFAULT_ZSTD is not set
-+CONFIG_ZSWAP_COMPRESSOR_DEFAULT="lzo"
++CONFIG_ZSWAP_COMPRESSOR_DEFAULT_ZSTD=y
++CONFIG_ZSWAP_COMPRESSOR_DEFAULT="zstd"
 +CONFIG_ZSWAP_ZPOOL_DEFAULT_ZBUD=y
 +# CONFIG_ZSWAP_ZPOOL_DEFAULT_Z3FOLD is not set
 +# CONFIG_ZSWAP_ZPOOL_DEFAULT_ZSMALLOC is not set
@@ -4201,6 +4215,8 @@ index 000000000..632eaceda
 +CONFIG_MAPPING_DIRTY_HELPERS=y
 +CONFIG_SECRETMEM=y
 +# CONFIG_ANON_VMA_NAME is not set
++CONFIG_NTIER_MEMORY=y
++CONFIG_NTIER_MEMORY_TOOLS=y
 +
 +#
 +# Data Access Monitoring
@@ -5376,6 +5392,7 @@ index 000000000..632eaceda
 +# CONFIG_BLK_DEV_PCIESSD_MTIP32XX is not set
 +CONFIG_ZRAM=m
 +CONFIG_ZRAM_DEF_COMP_LZORLE=y
++# CONFIG_ZRAM_DEF_COMP_ZSTD is not set
 +# CONFIG_ZRAM_DEF_COMP_LZ4 is not set
 +# CONFIG_ZRAM_DEF_COMP_LZO is not set
 +CONFIG_ZRAM_DEF_COMP="lzo-rle"
@@ -11132,6 +11149,8 @@ index 000000000..632eaceda
 +CONFIG_INIT_STACK_NONE=y
 +# CONFIG_INIT_ON_ALLOC_DEFAULT_ON is not set
 +# CONFIG_INIT_ON_FREE_DEFAULT_ON is not set
++CONFIG_CC_HAS_ZERO_CALL_USED_REGS=y
++# CONFIG_ZERO_CALL_USED_REGS is not set
 +# end of Memory initialization
 +# end of Kernel hardening options
 +# end of Security options
@@ -11308,7 +11327,7 @@ index 000000000..632eaceda
 +# CONFIG_CRYPTO_842 is not set
 +CONFIG_CRYPTO_LZ4=y
 +# CONFIG_CRYPTO_LZ4HC is not set
-+# CONFIG_CRYPTO_ZSTD is not set
++CONFIG_CRYPTO_ZSTD=y
 +
 +#
 +# Random Number Generation
@@ -11439,6 +11458,7 @@ index 000000000..632eaceda
 +CONFIG_LZO_DECOMPRESS=y
 +CONFIG_LZ4_COMPRESS=y
 +CONFIG_LZ4_DECOMPRESS=y
++CONFIG_ZSTD_COMPRESS=y
 +CONFIG_ZSTD_DECOMPRESS=y
 +CONFIG_XZ_DEC=y
 +CONFIG_XZ_DEC_X86=y
@@ -11549,6 +11569,7 @@ index 000000000..632eaceda
 +# CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT is not set
 +CONFIG_DEBUG_INFO_DWARF4=y
 +# CONFIG_DEBUG_INFO_DWARF5 is not set
++CONFIG_PAHOLE_HAS_SPLIT_BTF=y
 +# CONFIG_GDB_SCRIPTS is not set
 +CONFIG_FRAME_WARN=2048
 +CONFIG_STRIP_ASM_SYMS=y
@@ -11586,6 +11607,8 @@ index 000000000..632eaceda
 +CONFIG_ARCH_HAS_UBSAN_SANITIZE_ALL=y
 +# CONFIG_UBSAN is not set
 +CONFIG_HAVE_ARCH_KCSAN=y
++CONFIG_HAVE_KCSAN_COMPILER=y
++# CONFIG_KCSAN is not set
 +# end of Generic Kernel Debugging Instruments
 +
 +CONFIG_DEBUG_KERNEL=y

@@ -2,38 +2,41 @@
 
 This repository contains the artifact for the paper "TierScape: Harnessing Multiple Compressed Tiers to Tame Server Memory TCO" published at EuroSys 2026.
 
-## Overview
+<!-- define a counter that gets incremented with use -->
+
+
+## 1. Overview
 
 TierScape can be evaluated in two configurations:
 1. **Without kernel patches** - Multiple byte-addressable tiers (default kernel)
 2. **With kernel patches** - Multiple byte-addressable tiers + compressible tiers
 
-This artifact evaluation demonstrates both configurations, with kernel patches being required only if you want to enable compressible tiers. For basic functionality with multiple byte-addressable tiers, the default kernel is sufficient.
+This artifact evaluation demonstrates both configurations, with kernel patches being required only if you want to enable compressible tiers. 
+For basic functionality with multiple byte-addressable tiers, the default kernel is sufficient.
 
-## Quick Start (Without Kernel Patches)
+**Result reproducibility:** The system used in the paper has DRAM and Intel Optane memory tiers. To repdoduce the performance results, Optane memory is a must (as it is a much slower memory compared to DRAM).
 
-For initial testing and basic functionality, you can use the default kernel:
-
-
-### Check NUMA Configuration
+The artifact default setting is designed for a system with atleast 2 NUMA nodes. It will use NUMA node 0 as the fast memory tier and NUMA node 1 as the slow memory tier. This can be changed (see TBD)
 Verify your system's NUMA topology:
 ```bash
 numactl -H
 ```
 The byte-addressable tiers appear as different NUMA nodes.
 
+## 2. Quick Start (Without Kernel Patches)
 
+For initial testing and basic functionality, you can use the default kernel:
 
-### Running Tiering with MASim
+### 2.1. Running Tiering with MASIM
 
 TierScape includes comprehensive MASIM experiments to evaluate different tiering strategies. Follow these steps:
 
-#### Build and Test MASim
+#### Build and Test MASIM
 ```bash
 cd <root dir of repo>
 make setup           # Sets up the environment and dependencies
-make build_masim     # Builds the MASim simulator
-make test_masim      # Tests MASim with sample configuration
+make build_masim     # Builds the MASIM simulator
+make test_masim      # Tests MASIM with sample configuration
 ```
 
 #### Run Individual MASIM Experiments
@@ -56,12 +59,13 @@ make tier_masim_waterfall
 #### Run All MASIM Experiments
 To run all experiments sequentially:
 ```bash
+## This will execute all four tiering strategies (baseline, hemem, ilp, waterfall) in sequence.
 make tier_masim_all
 ```
 
-This will execute all four tiering strategies (baseline, hemem, ilp, waterfall) in sequence and generate comprehensive results.
+See [Understanging the results](#3-understanding-the-results) section to interpret the results.
 
-### Running Tiering with Memcached
+### 2.2 Running Tiering with Memcached
 
 TierScape also supports memcached workloads using memtier_benchmark for realistic evaluation.
 
@@ -107,26 +111,107 @@ make tier_memcached_memtier_all
 ```
 
 
+## 5. Running with kernel patches
 
-## Results and Evaluation
+### Building and Installing the Custom Kernel
 
+
+### Fetch the kernel and apply patches
+
+```bash
+$ cd <root dir of repo>
+$ git clone https://github.com/torvalds/linux.git --branch v5.17 --depth 1
+$ cd linux
+$ git am ../linux_patch/0001-tierscape-eurosys26.patch
+```
+
+
+Verify the patches are applied:
+
+```bash
+$ git log
+
+commit 8d955619e152eabd14acefa19c4c819c053cf96a (HEAD -> tierscape)
+Author: Sandeep Kumar <sandeep4.kumar@intel.com>
+Date:   Tue Sep 2 04:48:30 2025 +0530
+
+    tierscape eurosys26
+
+commit f443e374ae131c168a065ea1748feac6b2e76613 (grafted, tag: v5.17)
+Author: Linus Torvalds <torvalds@linux-foundation.org>
+Date:   Sun Mar 20 13:14:17 2022 -0700
+
+    Linux 5.17
+
+    Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+
+```
+
+### Build the kernel
+```bash
+$ cp tierscape_config .config
+$ make -j $(nproc)
+## Select default values for any new options
+$ sudo make modules_install -j $(nproc)
+$ sudo make install -j $(nproc)
+```
+### Reboot into the new kernel
+```bash
+sudo reboot
+```
+After reboot, verify the new kernel is active:
+```bash
+$ uname -r
+5.17.0-ntier-noiaa-v1+
+```
+
+### Enabling Compressible Tiers
+
+```bash
+$ sudo bash skd_daemon/shell_scripts/setup_ntiers.sh
+Setting BASE_DIR to
+Using ZRAM
+Removing zram
+Setting up zram
+FAST_NODE: 0
+SLOW_NODE: 1
+Disabling the prefetching
+skd_daemon/shell_scripts/setup_ntiers.sh: line 41: echo: write error: No such file or directory
+skd_daemon/shell_scripts/setup_ntiers.sh: line 45: echo: write error: No such file or directory
+kernel.zswap_print_stat = 1
+[73430.834080] zswap: compressor zstd not available
+[73430.834132] zswap: ..
+                 Request for a new pool: pool and compressor is zsmalloc lzo backing store value is 0
+[73430.834134] zswap: Looking for a zpool zsmalloc lzo 0
+[73430.834135] zswap: It looks like we already have a pool. zsmalloc lzo 0
+[73430.834136] zswap: zswap: Adding zpool Type zsmalloc Compressor lzo BS 0
+[73430.834136] zswap: Total pools now 3
+[73430.834163] zswap: ..
+                 Request for a new pool: pool and compressor is zsmalloc lzo backing store value is 0
+[73430.834164] zswap: Looking for a zpool zsmalloc lzo 0
+[73430.834164] zswap: It looks like we already have a pool. zsmalloc lzo 0
+[73430.834165] zswap: zswap: Adding zpool Type zsmalloc Compressor lzo BS 0
+[73430.834166] zswap: Total pools now 3
+[73430.834717]
+               ------------
+               Total zswap pools 3
+[73430.834719] zswap: Tier CData       pool        compressor  backing     Pages       isCPUComp   Faults
+[73430.834722] zswap: 0    0           zsmalloc    lzo         0           0           true        0
+[73430.834724] zswap: 1    0           zsmalloc    lzo         1           0           true        0
+[73430.834725] zswap: 2    0           zbud        lzo         0           0           true        0
+
+```
+
+
+## 4. Understanding the Results
 After running experiments, results are stored in the following locations:
-
 - **Performance Data**: Results are stored in `evaluation/` directories
-- **SKD Daemon Results**: Check `skd_daemon/evaluation/` for detailed performance metrics
-
-## Understanding the Results
 
 The experiments generate data comparing different tiering strategies:
 - **Baseline (-1)**: No tiering, all data in single tier
 - **HeMem (0)**: HeMem-based tiering algorithm
 - **ILP (1)**: Integer Linear Programming-based optimal tiering
 - **Waterfall (2)**: Waterfall-based tiering strategy
-
-Key metrics include:
-- Memory usage across tiers
-- Access latency improvements
-- Overall performance
 
 > **Note:** Instructions for building and running with a custom Linux kernel will be added soon.
 

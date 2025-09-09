@@ -1,10 +1,29 @@
 # scipt dir
 HOME_DIR=$(dirname $(realpath $0))
+source ${HOME_DIR}/../skd_config.sh
 
-source ${HOME_DIR}/sanity_checks.sh
-
+# source ${HOME_DIR}/sanity_checks.sh
 
 ${HOME_DIR}/enable_zram.sh
+
+# ensure FAST_NODES and SLOW_NODES are set
+if [ -z "$FAST_NODES" ]; then
+   echo "FATAL: FAST_NODES is not set"
+    exit 1
+fi
+if [ -z "$SLOW_NODES" ]; then
+    echo "FATAL: SLOW_NODES is not set"
+    # SLOW_NODES="1"
+    exit 1
+fi
+# extract first element from FAST_NODES and SLOW_NODES
+FAST_NODE=$(echo $FAST_NODES | cut -d',' -f1)
+SLOW_NODE=$(echo $SLOW_NODES | cut -d',' -f1)
+
+echo "FAST_NODE: $FAST_NODE"
+echo "SLOW_NODE: $SLOW_NODE"
+
+
 
 # swapoff -a
 
@@ -20,15 +39,15 @@ echo Y >  /sys/module/zswap/parameters/ntier_enabled
 
 echo zsmalloc > /sys/module/zswap/parameters/zpool
 echo zstd > /sys/module/zswap/parameters/compressor
-echo 2 > /sys/module/zswap/parameters/backing_store
+echo ${SLOW_NODE} > /sys/module/zswap/parameters/backing_store
 
 echo zsmalloc > /sys/module/zswap/parameters/zpool
 echo zstd > /sys/module/zswap/parameters/compressor
-echo 0 > /sys/module/zswap/parameters/backing_store
+echo ${FAST_NODE} > /sys/module/zswap/parameters/backing_store
 
 echo zsmalloc > /sys/module/zswap/parameters/zpool
 echo lzo > /sys/module/zswap/parameters/compressor
-echo 0 > /sys/module/zswap/parameters/backing_store
+echo ${FAST_NODE} > /sys/module/zswap/parameters/backing_store
 
 # echo zbud > /sys/module/zswap/parameters/zpool
 # echo lz4 > /sys/module/zswap/parameters/compressor
@@ -46,7 +65,7 @@ echo 0 > /sys/module/zswap/parameters/backing_store
 
 echo 0 > /sys/module/zswap/parameters/same_filled_pages_enabled
 sysctl kernel.zswap_print_stat=1
-# dmesg |tail -n 20
+dmesg |tail -n 20
 
 
 # =============
