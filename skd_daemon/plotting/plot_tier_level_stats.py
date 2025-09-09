@@ -17,6 +17,7 @@ import matplotlib.ticker as ticker
 import sys
 sys.path.append(".")
 from plot_utils import *
+from tier_config_simple import get_tier_configs
 
 def format_ticks(value, pos):
     if value >= 1000:
@@ -87,7 +88,14 @@ pool_config = ['BS', 'type', 'comp']
 # read the input file and extract the stats for each tier
 tier_stats = {}
 
-tier_configs = read_array_from_pickle(f"{directory}/plots/raw/tier/tier_configs")
+# Try to read from shared config first, fallback to pickle file
+try:
+    tier_configs = get_tier_configs()
+    print(f"Loaded tier configs from shared header: {tier_configs}")
+except Exception as e:
+    print(f"Failed to load from shared config: {e}")
+    print("Falling back to pickle file...")
+    tier_configs = read_array_from_pickle(f"{directory}/plots/raw/tier/tier_configs")
 max_tier_id = int(read_array_from_file(f"{directory}/plots/raw/tier/max_tier_id")[0])
 min_tier_id = int(read_array_from_file(f"{directory}/plots/raw/tier/min_tier_id")[0])
 

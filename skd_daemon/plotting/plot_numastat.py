@@ -11,6 +11,7 @@ import numpy as np
 import sys
 sys.path.append(".")
 from plot_utils import *
+from tier_config_simple import get_dram_optane_info
 
 
 # create the argument parser
@@ -22,6 +23,22 @@ parser.add_argument('--tsleep', '-ts', metavar='trend_sleep_duration', dest='tre
 args = parser.parse_args()
 
 trend_sleep_duration = args.trend_sleep_duration
+
+# Load DRAM/OPTANE configuration from shared config
+try:
+    dram_optane_config = get_dram_optane_info()
+    print(f"Loaded DRAM/OPTANE config: {dram_optane_config}")
+
+    total_byte_tiers = len(dram_optane_config)
+    fast_tier_idxes = [tier['virt_id'] for tier in dram_optane_config.values() if tier and tier['mem_type'] == 0]  # DRAM
+    slow_tier_idxes = [tier['virt_id'] for tier in dram_optane_config.values() if tier and tier['mem_type'] == 1]  # OPTANE
+
+    print("Total byte-addressable tiers:", total_byte_tiers)
+    print(f"Fast tier indices (DRAM): {fast_tier_idxes}")
+    print(f"Slow tier indices (OPTANE): {slow_tier_idxes}")
+except Exception as e:
+    print(f"Warning: Failed to load tier config: {e}")
+    dram_optane_config = None
 
 # if input file is not provided, exit
 if args.input_file is None:
@@ -44,16 +61,31 @@ with open(args.input_file, "r") as f:
             line = ' '.join(line.split())
             cols = line.split(' ')
             
+            # try:
+            #     if cols[5]==0:
+            #         continue # the pgrogram exited and this are stray entries
+            # except IndexError:
+            #     print("Index error in line:", line)
+            #     print(cols)
+            #     exit(1)
+            
             try:
-                if cols[5]==0:
-                    continue # the pgrogram exited and this are stray entries
-            except IndexError:
-                print("Index error in line:", line)
-                print(cols)
+                for idx in fast_tier_idxes:
+                    dram_data = int(cols[idx+1])
+                for idx in slow_tier_idxes:
+                    optane_data = int(cols[idx+1])
+
+                total_data = int(cols[total_byte_tiers+1])
+            except Exception as e:
+                print(f"Error parsing line: {line} {cols} {total_byte_tiers+1} with error {e}")
+                # print stack trace
+                import traceback
+                traceback.print_exc()
                 exit(1)
-            dram_data = int(cols[1]) + int(cols[2])
-            optane_data = int(cols[3]) + int(cols[4])
-            total_data = int(cols[5])
+
+            # dram_data = int(cols[1]) + int(cols[2])
+            # optane_data = int(cols[3]) + int(cols[4])
+            # total_data = int(cols[5])
             
             # loop thrugh all cols except last
             for i in range(1, len(cols)-1):

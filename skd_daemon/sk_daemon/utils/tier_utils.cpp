@@ -2,6 +2,7 @@
 #include "tier_utils.h"
 
 #include "utils.h"
+#include "tier_config.h"
 #include <numaif.h>
 #include <syscall.h>
 
@@ -63,25 +64,49 @@ bool compare_tiers(TierInfo *a, TierInfo *b) {
 
 int OPTANE_PREFERRED = 1;
 
+// Implementation of the configuration helper function
+std::vector<TierInfo*> create_configured_tiers() {
+	std::vector<TierInfo*> tiers;
+	
+	for (int i = 0; i < NUM_TIER_CONFIGS; i++) {
+		const TierConfigData& config = TIER_CONFIGS[i];
+		
+		if (config.is_compressed) {
+			// Create compressed tier using the appropriate constructor
+			tiers.push_back(new TierInfo(
+				config.virt_id,
+				config.pool_manager,
+				config.compressor,
+				config.backing_store,
+				config.is_cpu,
+				config.tier_latency
+			));
+		} else {
+			// Create standard tier using the simpler constructor
+			tiers.push_back(new TierInfo(
+				config.virt_id,
+				config.mem_type,
+				config.tier_latency
+			));
+		}
+	}
+	
+	return tiers;
+}
+
 TIERS_INFO::TIERS_INFO() {
 	pr_debug("\n***********\nINITIALIZE TIERS. THIS SHOULD BE DONE ONLY ONCE.\n**************\n")
 	    tiers.clear();
 
-	int iscpu = 1;
+	// Load tiers from shared configuration using TierInfo class
+	std::vector<TierInfo*> configured_tiers = create_configured_tiers();
+	for (TierInfo* tier : configured_tiers) {
+		tiers.insert(tiers.begin(), tier);
+	}
+	
+	pr_debug("Loaded %zu tiers from shared configuration\n", configured_tiers.size());
 
-
-	tiers.insert(tiers.begin(), new TierInfo(0, DRAM, 2));
-	tiers.insert(tiers.begin(), new TierInfo(1, OPTANE, 4));
-
-	// tiers.insert(tiers.begin(), new TierInfo(COMPRESSED_TIERS_BASED+0,  "zsmalloc", "lzo", DRAM, iscpu,  5));
-	// tiers.insert(tiers.begin(), new TierInfo(COMPRESSED_TIERS_BASED+1,  "zsmalloc", "zstd", OPTANE, iscpu,  7));
-
-	// tiers.insert(tiers.begin(), new TierInfo(COMPRESSED_TIERS_BASED+1,  "zsmalloc", "zstd", DRAM, iscpu, 6));
-	// tiers.insert(tiers.begin(), new TierInfo(COMPRESSED_TIERS_BASED+3,  "zbud", "lzo", DRAM, iscpu, 8 ));
-
-
-
-	/* this is required, as we are inserting in any prder */
+	/* this is required, as we are inserting in any order */
 	std::sort(tiers.begin(), tiers.end(), compare_tiers);
 
 	for (struct TierInfo *t : tiers) {
