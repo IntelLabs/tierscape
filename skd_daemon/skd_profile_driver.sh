@@ -64,6 +64,7 @@ AGG_MODE=$3
 echo "BENCH_SCRIPT: $BENCH_SCRIPT"
 echo "SKD_MODE: ${SKD_MODE}"
 echo "AGG_MODE: ${AGG_MODE}"
+echo "ENABLE_NTIER: ${ENABLE_NTIER}"
 
 export BENCH_SCRIPT
 export SKD_MODE
@@ -200,6 +201,7 @@ PREP_AND_EXECUTE_SKD &
 # # ============================ Execute Bench Script ======================
 
 execute_bench_script
+PROFILE_PLOT_FIGS 1
 
 # =======SKD cleanup
 

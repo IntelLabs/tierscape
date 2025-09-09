@@ -213,7 +213,7 @@ function execute_bench_script(){
     echo "****success****" 
     CLEAN_EXP
     sleep 2
-    # PROFILE_PLOT_FIGS 1
+  
 }
 
 
