@@ -1,3 +1,10 @@
+# Change these============
+FAST_NODES="0"
+SLOW_NODES="1"
+# path to perf binary as per the system
+PERF_BIN="/data/sandeep/idxd/tools/perf/perf"
+# ====================
+
 BASELINE_MODE=-1
 HEMEM_MODE=0
 NTIER_FIXED_ILP=1
@@ -6,19 +13,17 @@ NTIER_FIXED_WATERFALL=2
 
 
 EXP_NAME="exp_eurosys26_EN${ENABLE_NTIER}"
-PERF_BIN="/data/sandeep/idxd/tools/perf/perf"
+
 
 SKD_PERF_EVENTS="-e cpu/event=0xd0,umask=0x81/ppu -e cpu/event=0xd0,umask=0x82/ppu -e cpu/event=0xd0,umask=0x11/ppu -e cpu/event=0xd0,umask=0x12/ppu"
 SKD_FREQ=10000
 SKD_WIN_SIZE=5
 SKD_HOTNESS_THRESHOLD=2
 
+# -1 baseline 0 HEMEM 1 ILP 2 WATERFALL. Default is baseline
 SKD_MODE=-1
 
 SKD_PUSH_THREADS=2
-
-FAST_NODES="0"
-SLOW_NODES="1"
 
 
 # ENABLE_NTIER=0

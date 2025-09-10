@@ -16,12 +16,37 @@ For basic functionality with multiple byte-addressable tiers, the default kernel
 
 **Result reproducibility:** The system used in the paper has DRAM and Intel Optane memory tiers. To repdoduce the performance results, Optane memory is a must (as it is a much slower memory compared to DRAM).
 
+## Configuration
+
 The artifact default setting is designed for a system with atleast 2 NUMA nodes. It will use NUMA node 0 as the fast memory tier and NUMA node 1 as the slow memory tier. This can be changed (see TBD)
 Verify your system's NUMA topology:
 ```bash
-numactl -H
+@ numactl -H
+available: 2 nodes (0-1)
+node 0 cpus: 0 1 ...
+node 0 size: 769637 MB
+node 0 free: 754897 MB
+node 1 cpus: 36 37 ...136 137 138
+node 1 size: 771044 MB
+node 1 free: 711993 MB
+node distances:
+node     0    1
+   0:   10   21
+   1:   21   10
 ```
-The byte-addressable tiers appear as different NUMA nodes.
+
+There are few other configurations required. In '<root_dir>/skd_daemon/skd_config.sh' change the following variables as per your system:
+
+```bash
+# Change these============
+FAST_NODES="0"
+SLOW_NODES="1"
+# path to perf binary as per the system
+PERF_BIN="/data/sandeep/idxd/tools/perf/perf"
+# ====================
+
+```
+
 
 ## 2. Quick Start (Without Kernel Patches)
 
