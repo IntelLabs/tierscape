@@ -2,6 +2,11 @@ all_checks_ok=1
 
 # get script dir
 SANITY_SCRIPT_DIR=$(dirname $(realpath $0))
+# if BASE_DIR is not set, set it to parent of SANITY_SCRIPT_DIR
+if [ -z "$BASE_DIR" ]; then
+    echo "BASE_DIR is not set. Setting it to parent of SANITY_SCRIPT_DIR"
+    BASE_DIR=$(dirname ${SANITY_SCRIPT_DIR})/..
+fi
 
 source ${SANITY_SCRIPT_DIR}/../skd_config.sh
 
@@ -29,9 +34,9 @@ check_path() {
         echo "Sanity check: ENABLE_NTIER is 1. Appending path"
         paths+=($SKD_HOME)
         paths+=("/sys/module/zswap/parameters/ntier_enabled")
-        paths+=("${HOME_DIR}/shell_scripts/setup_ntiers.sh")
-        paths+=("${HOME_DIR}/shell_scripts/enable_zram.sh")
-        paths+=("${HOME_DIR}/convolve.py")
+        paths+=("${SANITY_SCRIPT_DIR}/setup_ntiers.sh")
+        paths+=("${SANITY_SCRIPT_DIR}/enable_zram.sh")
+        paths+=("${SANITY_SCRIPT_DIR}/../sk_daemon/convolve.py")
     fi
 
     for path in "${paths[@]}"; do
