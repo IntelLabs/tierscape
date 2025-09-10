@@ -193,7 +193,8 @@ $ uname -r
 ### Enabling Compressible Tiers
 
 ```bash
-$ sudo bash skd_daemon/shell_scripts/setup_ntiers.sh
+$ cd <root dir of repo>
+$ make ntier_setup
 Using ZRAM
 Removing zram
 Setting up zram

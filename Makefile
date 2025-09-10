@@ -18,6 +18,9 @@ include Makefile.memcached
 check_tierscape_setup:
 	@if [ ! -f /tmp/tierscape_env.sh ]; then echo "/tmp/tierscape_env.sh not found! Please run 'make setup' first."; exit 1; fi
 
+# ============
+ntier_setup:
+	@sudo bash skd_daemon/shell_scripts/setup_ntiers.sh	
 
 # =======================================
 python_setup: $(VENV_DIR)

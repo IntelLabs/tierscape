@@ -33,7 +33,7 @@ DISABLE_MIGRATION=0
 
 # ensure BASE_DIR is set
 if [ -z "$BASE_DIR" ]; then
-    BASE_DIR=$(dirname $(realpath $0))/../
+    BASE_DIR=$(dirname $(realpath $0))/../..
     echo "Setting BASE_DIR to $BASE_DIR"
 fi
 
