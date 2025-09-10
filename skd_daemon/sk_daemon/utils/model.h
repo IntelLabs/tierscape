@@ -30,6 +30,11 @@ using namespace std;
 // TOOD enable this.
 // #define CONFIG_DISTRIBUT_FAULTS
 
+/* autoupdated on running make setup from the root dir as per skd_config.sh */
+#define FAST_NODE 1
+#define SLOW_NODE 3
+
+
 #define MAX_ITMES 5
 #define PAGESIZE 4096
 
@@ -154,33 +159,17 @@ struct REGION_SKD_BASE {
 
 // static bool is_printed_all_valid = false;
 
-#define COMPRESSED_TIERS_BASED 10
+#define COMPRESSED_TIERS_BASE 10
 
 enum MEM_TYPE {
 	DRAM,
 	OPTANE,
-	HBM,
 	CXL,
+	HBM,
 	COMPRESSED
 };
 
 const char *get_mem_type_string(MEM_TYPE type);
-//  {
-// switch (type) {
-//     case DRAM:
-//         return "DRAM";
-//     case OPTANE:
-//         return "OPTANE";
-//     case HBM:
-//         return "HBM";
-//     case CXL:
-//         return "CXL";
-//     case COMPRESSED:
-//         return "COMPRESSED";
-//     default:
-//         return "UNKNOWN";
-//     }
-// }
 
 class TierInfo {
 	// int phy_tier_id = 0;
@@ -191,7 +180,7 @@ class TierInfo {
 
     public:
 	// string type; /* Same as zpool */
-	MEM_TYPE type;
+	MEM_TYPE mem_type;
 	string pool_manager;
 	string compressor;
 	bool isCPU;
@@ -207,33 +196,33 @@ class TierInfo {
 	int tier_cost;
 	int tier_latency;
 
-	TierInfo(int16_t _virt_id, MEM_TYPE memtype, int _tier_latency) {
+	TierInfo(int16_t _virt_id, MEM_TYPE _mem_type, int _backing_store, int _tier_latency) {
 		virt_tier_id = _virt_id;
-		type = memtype;
+		mem_type = _mem_type;
 		pool_manager = "na";
 		compressor = "na";
-		backing_store = memtype;
+		backing_store = _backing_store;
 		isCPU = true;
 
 		tier_latency = _tier_latency;
 		compression_ratio = 1;
 
-		if (backing_store == DRAM) {
+		if (backing_store == FAST_NODE) {
 			tier_cost = dram_tier_cost;
 		} else {
 			tier_cost = optane_tier_cost;
 		}
 	}
 
-	TierInfo(int16_t _virt_id, string _pool_manager, string _compressor, MEM_TYPE _backing_store, bool _is_CPU, int _tier_latency) {
+	TierInfo(int16_t _virt_id, string _pool_manager, string _compressor, int _backing_store, bool _is_CPU, int _tier_latency) {
 
 		virt_tier_id = _virt_id;
-		type = COMPRESSED;
+		mem_type = COMPRESSED;
 		pool_manager = _pool_manager;
 		compressor = _compressor;
 		backing_store = _backing_store;
 		isCPU = _is_CPU;
-		if (backing_store == DRAM) {
+		if (backing_store == FAST_NODE) {
 			tier_cost = dram_tier_cost;
 		} else {
 			tier_cost = optane_tier_cost;
@@ -252,7 +241,7 @@ class TierInfo {
 	}
 
 	bool isCompressed() {
-		return type == COMPRESSED;
+		return mem_type == COMPRESSED;
 	}
 
 	int get_virt_tier_id() {

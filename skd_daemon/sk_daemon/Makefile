@@ -13,7 +13,7 @@ HOST=$(shell hostname)
 
 
 
-all: tracker_d.o test.o utils/space_helper.cpp
+all: tracker_d.o 
 
 
 HEADERS := $(wildcard utils/*.h)
@@ -45,8 +45,6 @@ tracker_d.o:  $(UTILS_OBJS) $(CORE_OBJS) tracker_d.cpp $(HEADERS)
 	@g++ $(CPPFLAGS) $(UTILS_OBJS) $(CORE_OBJS)  tracker_d.cpp -o $@  $(FLAGS) $(INCLUDE_HEADERS)
 
 
-# test.o: test.cpp
-# 	g++ -std=c++17  $^ -o $@  -DOPTANEMACHINE $(FLAGS)
 
 
 

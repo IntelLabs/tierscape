@@ -4,3 +4,4 @@ setup.log
 .vscode
 evaluation/*
 memtier_benchmark
+skd_daemon/plotting/test_tier_config.py

@@ -39,8 +39,8 @@ There are few other configurations required. In '<root_dir>/skd_daemon/skd_confi
 
 ```bash
 # Change these============
-FAST_NODES="0"
-SLOW_NODES="1"
+FAST_NODE="0"
+SLOW_NODE="1"
 # path to perf binary as per the system
 PERF_BIN="/data/sandeep/idxd/tools/perf/perf"
 # ====================

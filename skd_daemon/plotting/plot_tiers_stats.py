@@ -11,7 +11,7 @@ import re
 import sys
 sys.path.append(".")
 from plot_utils import *
-from tier_config_simple import get_dram_optane_info
+from tier_config_simple import get_complete_uncompressed_tiers_info, get_complete_compressed_tiers_info
 
 
 # create the argument parser
@@ -35,23 +35,37 @@ else:
 
 print(f"=====================\nPlotting {os.path.basename(__file__)}")
 
-# Load DRAM/OPTANE configuration from shared config
+# Load tier configuration from shared config
 try:
-    dram_optane_config = get_dram_optane_info()
-    print(f"Loaded DRAM/OPTANE config: {dram_optane_config}")
+    uncompressed_tiers = get_complete_uncompressed_tiers_info()
+    compressed_tiers = get_complete_compressed_tiers_info()
+    print(f"Loaded uncompressed tiers config: {uncompressed_tiers}")
+    print(f"Loaded compressed tiers config: {compressed_tiers}")
 
-    total_byte_tiers = len(dram_optane_config)
-    fast_tier_idxes = [tier['virt_id'] for tier in dram_optane_config.values() if tier and tier['mem_type'] == 0]  # DRAM
-    slow_tier_idxes = [tier['virt_id'] for tier in dram_optane_config.values() if tier and tier['mem_type'] == 1]  # OPTANE
+    # For this plot, we only want compressed tiers
+    # Use their offset (0, 1, 2) as they appear in pool_id
+    valid_tier_ids = [tier['offset'] for tier in compressed_tiers]
+    
+    # Create mapping for display purposes (compressed tiers only)
+    tier_id_mapping = {}
+    for tier in compressed_tiers:
+        tier_id_mapping[tier['offset']] = f"Compressed-{tier['offset']} ({tier['compressor']}, backing={tier['backing_store']})"
+    
+    # For backing store analysis, we still need to know which uncompressed tiers are DRAM/OPTANE
+    fast_tier_idxes = [tier['virt_id'] for tier in uncompressed_tiers if tier['mem_type'] == 'DRAM']
+    slow_tier_idxes = [tier['virt_id'] for tier in uncompressed_tiers if tier['mem_type'] == 'OPTANE']
 
-    print("Total byte-addressable tiers:", total_byte_tiers)
+    print(f"Valid tier IDs for filtering (compressed only): {valid_tier_ids}")
+    print("Compressed tier ID mapping:")
+    for tid in sorted(tier_id_mapping.keys()):
+        description = tier_id_mapping[tid]
+        print(f"  pool_id {tid}: {description}")
     print(f"Fast tier indices (DRAM): {fast_tier_idxes}")
     print(f"Slow tier indices (OPTANE): {slow_tier_idxes}")
 except Exception as e:
     print(f"Warning: Failed to load tier config: {e}")
-    dram_optane_config = None
     # fatal error
-    print("Error: Could not determine DRAM/OPTANE tier indices from config. Exiting.")
+    print("Error: Could not determine tier indices from config. Exiting.")
     exit(1)
 
 
@@ -78,11 +92,21 @@ with open(args.input_file, "r") as f:
         data.append(entry)
 
 df = pd.DataFrame(data)
-# for the col timestamp, subtract from the first timestamp
-df['timestamp'] = df['timestamp'] - df['timestamp'].iloc[0]
 
-# convert to int
-df['timestamp'] = df['timestamp'].astype(int)
+# Filter data to only include configured compressed tiers
+initial_rows = len(df)
+df = df[df['pool_id'].isin(valid_tier_ids)]
+filtered_rows = len(df)
+print(f"Filtered data: {initial_rows} -> {filtered_rows} rows (kept only compressed tiers: {valid_tier_ids})")
+
+# for the col timestamp, subtract from the first timestamp
+if len(df) > 0:
+    df['timestamp'] = df['timestamp'] - df['timestamp'].iloc[0]
+    # convert to int
+    df['timestamp'] = df['timestamp'].astype(int)
+else:
+    print("Warning: No data remaining after filtering for compressed tiers")
+    exit(1)
 
 
 for pid in df['pool_id'].unique():

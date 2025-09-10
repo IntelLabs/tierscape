@@ -71,7 +71,7 @@ std::vector<TierInfo*> create_configured_tiers() {
 	for (int i = 0; i < NUM_TIER_CONFIGS; i++) {
 		const TierConfigData& config = TIER_CONFIGS[i];
 		
-		if (config.is_compressed) {
+		if (config.mem_type==COMPRESSED	) {
 			// Create compressed tier using the appropriate constructor
 			tiers.push_back(new TierInfo(
 				config.virt_id,
@@ -267,10 +267,10 @@ int push_a_region(REGION_SKD *curr_region, int pid, int dst_virt_tier) {
 	if (curr_region->curr_virt_tier == dst_virt_tier)
 		if (are_tiers_similar(curr_region->curr_virt_tier, dst_virt_tier)) {
 
-			if (dst_tier->type == DRAM) {
+			if (dst_tier->backing_store == FAST_NODE) {
 				return ALREADY_IN_DRAM;
 			}
-			if (dst_tier->type == OPTANE) {
+			if (dst_tier->backing_store == SLOW_NODE) {
 				return ALREADY_IN_OPTANE;
 			}
 			// if (dst_tier->type == COMPRESSED) {
@@ -290,7 +290,7 @@ int push_a_region(REGION_SKD *curr_region, int pid, int dst_virt_tier) {
 	2. Then it checks, if the DST_TIER is 0 or more, it assumes that that is zswap tiers, and will move the data to those tiers.
 	This second step can be taken out. That should be called from the user space.
 	*/
-	ret = syscall(SYS_do_migrate_dst_tier, pid, aligned_start_address, page_len_bytes, dst_virt_tier - COMPRESSED_TIERS_BASED);
+	ret = syscall(SYS_do_migrate_dst_tier, pid, aligned_start_address, page_len_bytes, dst_virt_tier - COMPRESSED_TIERS_BASE);
 	if (ret) {
 		/* ENSURE YOU ARE ON THE RIGHT KERNEL */
 		handle_syscall_error(curr_region, pid, dst_virt_tier);
@@ -350,17 +350,17 @@ void handle_syscall_error(REGION_SKD *curr_region, int &pid, int &dst_virt_tier)
 
 const char *get_mem_type_string(MEM_TYPE type) {
 	switch (type) {
-	case DRAM:
+case DRAM:
 		return "DRAM";
-	case OPTANE:
+case OPTANE:
 		return "OPTANE";
-	case HBM:
-		return "HBM";
-	case CXL:
+case CXL:	
 		return "CXL";
-	case COMPRESSED:
+case HBM:
+		return "HBM";
+case COMPRESSED:
 		return "COMPRESSED";
-	default:
+default:
 		return "UNKNOWN";
 	}
 }

@@ -14,7 +14,7 @@ PROFILE_PLOT_FIGS() {
     
     # check if plot_all.sh is present
     if [  -e ${SKD_HOME_DIR}/plot_all.sh ]; then
-        echo "Found at realpath $(realpath plot_all.sh)"
+        echo "Found at realpath $(realpath ${SKD_HOME_DIR}/plot_all.sh)"
         # bash plot_all.sh ${MAIN_LOG_DIR} $1
         bash ${SKD_HOME_DIR}/plot_all.sh ${MAIN_LOG_DIR} $1
     else

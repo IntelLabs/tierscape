@@ -11,7 +11,7 @@ if [ -z $PS_HOME_DIR ]; then
     exit 1
 fi
 
-source ${PS_HOME_DIR}/utils_checks_scripts/sanity_checks.sh
+# source ${PS_HOME_DIR}/utils_checks_scripts/sanity_checks.sh
 source ${PS_HOME_DIR}/utils_checks_scripts/trace_utils.sh
 source ${PS_HOME_DIR}/utils_checks_scripts/plot_utils.sh
 

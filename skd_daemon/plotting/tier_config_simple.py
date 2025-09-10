@@ -1,211 +1,210 @@
 """
 Simple tier configuration reader for Python scripts.
-Reads the shared tier_config.h file to get tier definitions using TierInfo structure.
+Reads the shared tier_config.h and model.h files to get tier constants.
 """
 
 import os
 import re
 
-def read_tier_config():
-    """Read tier configuration from the shared header file."""
-    # Find the config file relative to this script
+def read_constants():
+    """Read constants from the header files."""
+    # Find the files relative to this script
     script_dir = os.path.dirname(os.path.abspath(__file__))
     config_file = os.path.join(script_dir, "../sk_daemon/utils/tier_config.h")
     model_file = os.path.join(script_dir, "../sk_daemon/utils/model.h")
     
-    if not os.path.exists(config_file):
-        print(f"Warning: tier config file not found at {config_file}")
-        return get_default_config()
+    constants = {}
     
-    # Read both config file and model file for constants
+    # Read model.h for basic constants - REQUIRED
+    if not os.path.exists(model_file):
+        raise FileNotFoundError(f"Required file not found: {model_file}")
+    
+    with open(model_file, 'r') as f:
+        model_content = f.read()
+    
+    # Parse constants
+    const_pattern = r'#define\s+(\w+)\s+(\d+)'
+    for match in re.finditer(const_pattern, model_content):
+        constants[match.group(1)] = int(match.group(2))
+    
+    # Read config file - REQUIRED
+    if not os.path.exists(config_file):
+        raise FileNotFoundError(f"Required file not found: {config_file}")
+    
     with open(config_file, 'r') as f:
         config_content = f.read()
     
-    # Also read model.h for COMPRESSED_TIERS_BASED constant
-    model_content = ""
-    if os.path.exists(model_file):
-        with open(model_file, 'r') as f:
-            model_content = f.read()
-    
-    # Parse the constants from both files
-    constants = {}
-    all_content = config_content + "\n" + model_content
-    const_pattern = r'#define\s+(\w+)\s+(\d+)'
-    for match in re.finditer(const_pattern, all_content):
+    # Parse additional constants from config file
+    for match in re.finditer(const_pattern, config_content):
         constants[match.group(1)] = int(match.group(2))
     
-    # Parse tier configurations from the TIER_CONFIGS array
-    tiers = []
+    # Verify required constants are present
+    required_constants = ['FAST_NODE', 'SLOW_NODE', 'COMPRESSED_TIERS_BASE']
+    for const in required_constants:
+        if const not in constants:
+            raise ValueError(f"Required constant '{const}' not found in header files")
     
-    # Extract the array content between { and };
-    array_pattern = r'static const TierConfigData TIER_CONFIGS\[\] = \{(.*?)\};'
-    array_match = re.search(array_pattern, config_content, re.DOTALL)
-    
-    if array_match:
-        array_content = array_match.group(1)
-        # Find individual tier entries, but skip commented lines
-        lines = array_content.split('\n')
-        for line in lines:
-            line = line.strip()
-            # Skip empty lines and comment lines
-            if not line or line.startswith('//') or '//' in line.split('{')[0]:
-                continue
-            
-            # Look for tier entries in this line
-            tier_match = re.search(r'\{([^}]+)\}', line)
-            if tier_match:
-                tier_line = tier_match.group(1)
-                
-                # Parse tier parameters: {virt_id, is_compressed, pool_manager, compressor, mem_type, backing_store, is_cpu, tier_latency}
-                parts = [p.strip(' ",') for p in tier_line.split(',')]
-                if len(parts) >= 8:
-                    try:
-                        virt_id = parse_id_expression(parts[0], constants)
-                        is_compressed = parts[1].lower() == 'true'
-                        pool_manager = parts[2].strip('"')
-                        compressor = parts[3].strip('"')
-                        mem_type = mem_type_to_int(parts[4])
-                        backing_store = mem_type_to_int(parts[5])
-                        is_cpu = parts[6].lower() == 'true'
-                        tier_latency = int(parts[7])
-                        
-                        tier = {
-                            'virt_id': virt_id,
-                            'is_compressed': is_compressed,
-                            'pool_manager': pool_manager,
-                            'compressor': compressor,
-                            'mem_type': mem_type,
-                            'backing_store': backing_store,
-                            'is_cpu': is_cpu,
-                            'tier_latency': tier_latency,
-                            'compression_ratio': get_compression_ratio(compressor) if is_compressed else 1.0
-                        }
-                        tiers.append(tier)
-                    except (ValueError, IndexError) as e:
-                        print(f"Warning: Failed to parse tier config line: {tier_line}")
-                        continue
-    
+    return constants
+
+def get_fast_slow_tier_ids():
+    """Returns FAST_NODE and SLOW_NODE tier IDs."""
+    constants = read_constants()
     return {
-        'tiers': tiers,
-        'constants': constants
+        'FAST_NODE': constants['FAST_NODE'],
+        'SLOW_NODE': constants['SLOW_NODE']
     }
 
-def mem_type_to_int(mem_type_str):
-    """Convert MEM_TYPE enum to integer."""
-    mem_type_str = mem_type_str.strip()
-    if mem_type_str == 'DRAM':
-        return 0
-    elif mem_type_str == 'OPTANE':
-        return 1
-    elif mem_type_str == 'HBM':
-        return 2
-    elif mem_type_str == 'CXL':
-        return 3
-    elif mem_type_str == 'COMPRESSED':
-        return 4
-    else:
-        return 0  # Default to DRAM
-
-def get_compression_ratio(compressor):
-    """Get compression ratio based on compressor type (matching TierInfo logic)."""
-    if compressor == "zsmalloc":
-        return 0.2
-    elif compressor == "zstd":
-        return 0.5
-    else:
-        return 0.8
-
-def parse_id_expression(expr, constants):
-    """Parse expressions like 'COMPRESSED_TIERS_BASED+0'."""
-    expr = expr.strip()
-    if '+' in expr:
-        base_name, offset = expr.split('+')
-        base_value = constants.get(base_name.strip(), 0)
-        return base_value + int(offset.strip())
-    elif '-' in expr:
-        base_name, offset = expr.split('-')
-        base_value = constants.get(base_name.strip(), 0)
-        return base_value - int(offset.strip())
-    else:
-        # Try to parse as constant name or number
-        try:
-            return int(expr)
-        except ValueError:
-            return constants.get(expr, 0)
-
-def get_default_config():
-    """Fallback configuration if header file is not found."""
-    return {
-        'tiers': [
-            {
-                'virt_id': 0,
-                'is_compressed': False,
-                'pool_manager': 'na',
-                'compressor': 'na',
-                'mem_type': 0,  # DRAM
-                'backing_store': 0,  # DRAM
-                'is_cpu': True,
-                'tier_latency': 2,
-                'compression_ratio': 1.0
-            },
-            {
-                'virt_id': 1,
-                'is_compressed': False,
-                'pool_manager': 'na',
-                'compressor': 'na',
-                'mem_type': 1,  # OPTANE
-                'backing_store': 1,  # OPTANE
-                'is_cpu': True,
-                'tier_latency': 4,
-                'compression_ratio': 1.0
-            }
-        ],
-        'constants': {
-            'COMPRESSED_TIERS_BASED': 100,
-            'DRAM_TIER_COST': 10,
-            'OPTANE_TIER_COST': 3
-        }
-    }
-
-def get_tier_info():
-    """Get tier information compatible with existing plotting scripts."""
-    config = read_tier_config()
-    return config['tiers']
-
-def get_dram_optane_info():
-    """Get DRAM/OPTANE info for numastat plotting."""
-    config = read_tier_config()
-    dram_info = None
-    optane_info = None
+def get_compressed_tiers():
+    """Return compressed tier IDs minus COMPRESSED_TIERS_BASE."""
+    constants = read_constants()
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    config_file = os.path.join(script_dir, "../sk_daemon/utils/tier_config.h")
     
-    for tier in config['tiers']:
-        if tier['mem_type'] == 0:  # DRAM
-            dram_info = tier
-        elif tier['mem_type'] == 1:  # OPTANE
-            optane_info = tier
+    # Parse the tier_config.h file to find compressed tier configurations
+    with open(config_file, 'r') as f:
+        config_content = f.read()
     
-    return {'DRAM': dram_info, 'OPTANE': optane_info}
+    compressed_ids = []
+    
+    # Look for lines like: {COMPRESSED_TIERS_BASE+0, ...
+    # Extract the offset (0, 1, 2, etc.)
+    compressed_pattern = r'\{COMPRESSED_TIERS_BASE\+(\d+),'
+    for match in re.finditer(compressed_pattern, config_content):
+        # Skip commented lines
+        line_start = config_content.rfind('\n', 0, match.start()) + 1
+        line_end = config_content.find('\n', match.end())
+        if line_end == -1:
+            line_end = len(config_content)
+        line = config_content[line_start:line_end].strip()
+        
+        if not line.startswith('//'):
+            compressed_ids.append(int(match.group(1)))
+    
+    if not compressed_ids:
+        raise ValueError("No compressed tier configurations found in tier_config.h")
+    
+    return sorted(compressed_ids)
 
-# For compatibility with existing scripts
-def get_tier_configs():
-    """Get tier configs in the format expected by plot_tier_level_stats.py"""
-    config = read_tier_config()
-    tier_configs = {}
+def return_ids_nocompressed():
+    """Return IDs of non-compressed tiers."""
+    constants = read_constants()
+    fast_node = constants['FAST_NODE']
+    slow_node = constants['SLOW_NODE']
     
-    for tier in config['tiers']:
-        # Format: [backing_store, pool_manager, compressor]
-        tier_configs[tier['virt_id']] = [
-            str(tier['backing_store']),
-            tier['pool_manager'],
-            tier['compressor']
-        ]
+    # Non-compressed tiers are the standard FAST_NODE and SLOW_NODE tiers
+    non_compressed_ids = [fast_node, slow_node]
     
-    return tier_configs
+    return non_compressed_ids
 
 if __name__ == "__main__":
-    # Test the configuration reader
-    config = read_tier_config()
-    print("Tier Configuration:")
-    for tier in config['tiers']:
-        print(f"  Tier {tier['virt_id']}: {tier}")
-    print(f"Constants: {config['constants']}")
+    # Test the functions
+    print("Fast/Slow Tier IDs:", get_fast_slow_tier_ids())
+    print("Compressed Tier IDs (minus base):", get_compressed_tiers())
+    print("Non-compressed Tier IDs:", return_ids_nocompressed())
+
+def get_compressed_tier_absolute_ids():
+    """Returns absolute compressed tier IDs."""
+    constants = read_constants()
+    compressed_base = constants['COMPRESSED_TIERS_BASE']
+    compressed_offsets = get_compressed_tiers()
+    
+    return [compressed_base + offset for offset in compressed_offsets]
+
+def get_complete_compressed_tiers_info():
+    """Returns complete information for all compressed tiers."""
+    constants = read_constants()
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    config_file = os.path.join(script_dir, "../sk_daemon/utils/tier_config.h")
+    
+    # Parse the tier_config.h file to find compressed tier configurations
+    with open(config_file, 'r') as f:
+        config_content = f.read()
+    
+    compressed_tiers = []
+    
+    # Look for lines like: {COMPRESSED_TIERS_BASE+0, "zsmalloc", "lzo", COMPRESSED, FAST_NODE, true, 5},
+    # Pattern: {virt_id, pool_manager, compressor, mem_type, backing_store, is_cpu, tier_latency}
+    tier_pattern = r'\{COMPRESSED_TIERS_BASE\+(\d+),\s*"([^"]*)",\s*"([^"]*)",\s*(\w+),\s*(\w+),\s*(true|false),\s*(\d+)\}'
+    
+    for match in re.finditer(tier_pattern, config_content):
+        # Skip commented lines
+        line_start = config_content.rfind('\n', 0, match.start()) + 1
+        line_end = config_content.find('\n', match.end())
+        if line_end == -1:
+            line_end = len(config_content)
+        line = config_content[line_start:line_end].strip()
+        
+        if not line.startswith('//'):
+            offset = int(match.group(1))
+            compressed_base = constants['COMPRESSED_TIERS_BASE']
+            
+            tier_info = {
+                'virt_id': compressed_base + offset,
+                'offset': offset,
+                'pool_manager': match.group(2),
+                'compressor': match.group(3),
+                'mem_type': match.group(4),
+                'backing_store': constants.get(match.group(5), match.group(5)),  # Try to resolve constant
+                'is_cpu': match.group(6) == 'true',
+                'tier_latency': int(match.group(7))
+            }
+            compressed_tiers.append(tier_info)
+    
+    if not compressed_tiers:
+        raise ValueError("No compressed tier configurations found in tier_config.h")
+    
+    return sorted(compressed_tiers, key=lambda x: x['offset'])
+
+def get_complete_uncompressed_tiers_info():
+    """Returns complete information for all uncompressed (standard) tiers."""
+    constants = read_constants()
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    config_file = os.path.join(script_dir, "../sk_daemon/utils/tier_config.h")
+    
+    # Parse the tier_config.h file to find standard tier configurations
+    with open(config_file, 'r') as f:
+        config_content = f.read()
+    
+    uncompressed_tiers = []
+    
+    # Look for lines like: {FAST_NODE, "na", "na", DRAM, FAST_NODE, true, 2},
+    # Pattern: {virt_id, pool_manager, compressor, mem_type, backing_store, is_cpu, tier_latency}
+    tier_pattern = r'\{(\w+),\s*"([^"]*)",\s*"([^"]*)",\s*(DRAM|OPTANE),\s*(\w+),\s*(true|false),\s*(\d+)\}'
+    
+    for match in re.finditer(tier_pattern, config_content):
+        # Skip commented lines
+        line_start = config_content.rfind('\n', 0, match.start()) + 1
+        line_end = config_content.find('\n', match.end())
+        if line_end == -1:
+            line_end = len(config_content)
+        line = config_content[line_start:line_end].strip()
+        
+        if not line.startswith('//') and not 'COMPRESSED_TIERS_BASE' in line:
+            virt_id_str = match.group(1)
+            virt_id = constants.get(virt_id_str, virt_id_str)  # Try to resolve constant
+            
+            tier_info = {
+                'virt_id': virt_id,
+                'virt_id_name': virt_id_str,
+                'pool_manager': match.group(2),
+                'compressor': match.group(3),
+                'mem_type': match.group(4),
+                'backing_store': constants.get(match.group(5), match.group(5)),  # Try to resolve constant
+                'is_cpu': match.group(6) == 'true',
+                'tier_latency': int(match.group(7))
+            }
+            uncompressed_tiers.append(tier_info)
+    
+    if not uncompressed_tiers:
+        raise ValueError("No uncompressed tier configurations found in tier_config.h")
+    
+    return sorted(uncompressed_tiers, key=lambda x: x['virt_id'])
+
+if __name__ == "__main__":
+    # Test the functions
+    print("Constants:", read_constants())
+    print("Fast/Slow Tier IDs:", get_fast_slow_tier_ids())
+    print("Compressed Tier Offsets:", get_compressed_tiers())
+    print("Compressed Tier Absolute IDs:", get_compressed_tier_absolute_ids())
+    print("Complete Compressed Tiers Info:", get_complete_compressed_tiers_info())
+    print("Complete Uncompressed Tiers Info:", get_complete_uncompressed_tiers_info())

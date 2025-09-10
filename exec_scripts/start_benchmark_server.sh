@@ -29,18 +29,8 @@ kill_benchmark(){
 
 function start_redis(){
     kill_benchmark
-    if [ ${BENCH} == "redis_optane" ]; then
-        echo "Starting Redis Optane " ${BENCH}
-        numactl -i ${OPTANE_NODES} -- /usr/local/bin/redis ${REDIS_CONF}
-    elif [ ${BENCH} == "redis_dram" ]; then
-        echo "Starting Redis DRAM " ${BENCH}
-        CMD="numactl -i ${DRAM_NODES} -- /usr/local/bin/redis ${REDIS_CONF}"
-        echo $CMD
-        $CMD
-    elif [ ${BENCH} == "redis" ]; then
-        echo "Starting Redis " ${BENCH}
-        /usr/local/bin/redis ${REDIS_CONF}
-    fi
+    echo "Starting Redis " ${BENCH}
+    /usr/local/bin/redis ${REDIS_CONF}
 }
 
 # ======================
