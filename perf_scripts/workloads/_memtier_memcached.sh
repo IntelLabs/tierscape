@@ -1,6 +1,6 @@
-# ensure FAST_NODES is defined
-if [ -z ${FAST_NODES} ]; then
-	echo "Error: FAST_NODES is not set"
+# ensure FAST_NODE is defined
+if [ -z ${FAST_NODE} ]; then
+	echo "Error: FAST_NODE is not set"
 	exit 1
 fi
 
@@ -49,8 +49,8 @@ function exec_pre_run() {
     fi
 
     echo "Pre-run script -- memtier memcached. "
-    echo "Migrating pages from Optane nodes ${SLOW_NODES} to DRAM nodes ${FAST_NODES}"
-    MIG_CMD="migratepages $(pidof ${BENCH}) ${SLOW_NODES} ${FAST_NODES}"
+    echo "Migrating pages from Optane nodes ${SLOW_NODE} to DRAM nodes ${FAST_NODE}"
+    MIG_CMD="migratepages $(pidof ${BENCH}) ${SLOW_NODE} ${FAST_NODE}"
     echo "Running command: ${MIG_CMD}"
     eval ${MIG_CMD}
     

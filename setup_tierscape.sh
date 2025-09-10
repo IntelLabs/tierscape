@@ -27,7 +27,7 @@ function check_last_cmd_ret_code(){
 
 
 # ----------
-function skd_config(){
+function source_skd_config(){
     source ${BASE_DIR}/skd_daemon/skd_config.sh
     
     check_last_cmd_ret_code $? source_config
@@ -83,15 +83,36 @@ function export_tierscape_env(){
     echo "PS_HOME_DIR=${PS_HOME_DIR}" >> /tmp/tierscape_env.sh
     echo "ILP_HOME_DIR=${ILP_HOME_DIR}" >> /tmp/tierscape_env.sh
     echo "ENABLE_NTIER=${ENABLE_NTIER}" >> /tmp/tierscape_env.sh
-
+    
     # cat to stderr
     cat /tmp/tierscape_env.sh >&2
 }
 
-skd_config
+function update_header(){
+    HEADER_FILE=${BASE_DIR}/skd_daemon/sk_daemon/utils/model.h
+    # Use sed to update the header file in-place
+    sed -i "s/^#define FAST_NODE .*$/#define FAST_NODE $FAST_NODE/" $HEADER_FILE
+    sed -i "s/^#define SLOW_NODE .*$/#define SLOW_NODE $SLOW_NODE/" $HEADER_FILE
+    
+    echo "Updated $HEADER_FILE with FAST_NODE=$FAST_NODE and SLOW_NODE=$SLOW_NODE"
+    
+}
+
+source_skd_config
+update_header
+
 check_sanity
+
+# check for the presence of /tmp/tierscape_sanity_check_passed
+if [ ! -f /tmp/tierscape_sanity_check_passed ]; then
+    echo "FATAL: Sanity checks did not pass. Please check the logs/sanity_checks.log file" >&2
+    cat logs/sanity_checks.log >&2
+    exit 1
+fi
+
 configure_perf_scripts
 configure_ilp
+
 configure_skd_daemon
 export_tierscape_env
 

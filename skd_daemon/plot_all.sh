@@ -13,6 +13,15 @@ PLOT_DIR=${SKD_HOME_DIR}/plotting
 export SKD_HOME_DIR
 export PLOT_DIR
 
+echo "source ${SKD_HOME_DIR}/../.tierscape_venv/bin/activate"
+
+# ensure that dir ${SKD_HOME_DIR}/../.tierscape_venv/bin exits
+if [ ! -d ${SKD_HOME_DIR}/../.tierscape_venv/bin ]; then
+    echo "Error: ${SKD_HOME_DIR}/../.tierscape_venv/bin does not exist"
+    echo "Run make python_setup"
+    exit 1
+fi
+
 source ${SKD_HOME_DIR}/../.tierscape_venv/bin/activate
 
 source ${MAIN_LOG_DIR}/skd_env.sh
@@ -75,12 +84,13 @@ python3 ${PLOT_DIR}/plot_numastat.py -i "$MAIN_LOG_DIR/numastat" --pdf $SAVE_PDF
 python3 ${PLOT_DIR}/plot_tiers_stats.py -i ${TIER_STATS_FILE} --pdf $SAVE_PDF
 python3 ${PLOT_DIR}/plot_stacked_tco.py -d $MAIN_LOG_DIR"/plots" --pdf $SAVE_PDF -ts ${TREND_SLEEP_DURATION}
 
-python3 ${PLOT_DIR}/plot_skdlog.py -i ${SKD_LOG} --pdf $SAVE_PDF
 python3 ${PLOT_DIR}/plot_psi.py -i "$MAIN_LOG_DIR/psimemory" --pdf $SAVE_PDF -ts ${TREND_SLEEP_DURATION}
 python3 ${PLOT_DIR}/plot_pcm_bw.py -i ${MAIN_LOG_DIR}/pcm_memory --pdf $SAVE_PDF -ts ${TREND_SLEEP_DURATION}
-python3 ${PLOT_DIR}/plot_perftrend_metric.py -i ${MAIN_LOG_DIR}/perf_trend -p 1 -ts 1 -m mem_load_retired.local_pmm
 python3 ${PLOT_DIR}/plot_vmstat.py -i ${MAIN_LOG_DIR}/vmstat -m pgmigrate_success -p 1
 python3 ${PLOT_DIR}/plot_status.py -i ${MAIN_LOG_DIR}/status -m VmRSS -p 1
+
+# python3 ${PLOT_DIR}/plot_skdlog.py -i ${SKD_LOG} --pdf $SAVE_PDF
+# python3 ${PLOT_DIR}/plot_perftrend_metric.py -i ${MAIN_LOG_DIR}/perf_trend -p 1 -ts 1 -m mem_load_retired.local_pmm
 
 python3 ${PLOT_DIR}/plot_ops_and_avgops.py -i ${BENCH_EXEC_FILE} --pdf $SAVE_PDF
 

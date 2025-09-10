@@ -6,19 +6,19 @@ source ${HOME_DIR}/../skd_config.sh
 
 ${HOME_DIR}/enable_zram.sh
 
-# ensure FAST_NODES and SLOW_NODES are set
-if [ -z "$FAST_NODES" ]; then
-   echo "FATAL: FAST_NODES is not set"
+# ensure FAST_NODE and SLOW_NODE are set
+if [ -z "$FAST_NODE" ]; then
+   echo "FATAL: FAST_NODE is not set"
     exit 1
 fi
-if [ -z "$SLOW_NODES" ]; then
-    echo "FATAL: SLOW_NODES is not set"
-    # SLOW_NODES="1"
+if [ -z "$SLOW_NODE" ]; then
+    echo "FATAL: SLOW_NODE is not set"
+    # SLOW_NODE="1"
     exit 1
 fi
-# extract first element from FAST_NODES and SLOW_NODES
-FAST_NODE=$(echo $FAST_NODES | cut -d',' -f1)
-SLOW_NODE=$(echo $SLOW_NODES | cut -d',' -f1)
+# extract first element from FAST_NODE and SLOW_NODE
+FAST_NODE=$(echo $FAST_NODE | cut -d',' -f1)
+SLOW_NODE=$(echo $SLOW_NODE | cut -d',' -f1)
 
 echo "FAST_NODE: $FAST_NODE"
 echo "SLOW_NODE: $SLOW_NODE"

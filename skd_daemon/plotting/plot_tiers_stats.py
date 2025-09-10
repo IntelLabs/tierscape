@@ -2,16 +2,17 @@
 
 
 import matplotlib.pyplot as plt
-import argparse
-import os
 import matplotlib.ticker as ticker
 import pandas as pd
+import seaborn as sns
+import argparse
+import os
 import re
 
 import sys
 sys.path.append(".")
 from plot_utils import *
-from tier_config_simple import get_dram_optane_info
+from tier_config_simple import get_complete_uncompressed_tiers_info, get_complete_compressed_tiers_info
 
 
 # create the argument parser
@@ -35,23 +36,37 @@ else:
 
 print(f"=====================\nPlotting {os.path.basename(__file__)}")
 
-# Load DRAM/OPTANE configuration from shared config
+# Load tier configuration from shared config
 try:
-    dram_optane_config = get_dram_optane_info()
-    print(f"Loaded DRAM/OPTANE config: {dram_optane_config}")
+    uncompressed_tiers = get_complete_uncompressed_tiers_info()
+    compressed_tiers = get_complete_compressed_tiers_info()
+    print(f"Loaded uncompressed tiers config: {uncompressed_tiers}")
+    print(f"Loaded compressed tiers config: {compressed_tiers}")
 
-    total_byte_tiers = len(dram_optane_config)
-    fast_tier_idxes = [tier['virt_id'] for tier in dram_optane_config.values() if tier and tier['mem_type'] == 0]  # DRAM
-    slow_tier_idxes = [tier['virt_id'] for tier in dram_optane_config.values() if tier and tier['mem_type'] == 1]  # OPTANE
+    # For this plot, we only want compressed tiers
+    # Use their offset (0, 1, 2) as they appear in pool_id
+    valid_tier_ids = [tier['offset'] for tier in compressed_tiers]
+    
+    # Create mapping for display purposes (compressed tiers only)
+    tier_id_mapping = {}
+    for tier in compressed_tiers:
+        tier_id_mapping[tier['offset']] = f"Compressed-{tier['offset']} ({tier['compressor']}, backing={tier['backing_store']})"
+    
+    # For backing store analysis, we still need to know which uncompressed tiers are DRAM/OPTANE
+    fast_tier_idxes = [tier['virt_id'] for tier in uncompressed_tiers if tier['mem_type'] == 'DRAM']
+    slow_tier_idxes = [tier['virt_id'] for tier in uncompressed_tiers if tier['mem_type'] == 'OPTANE']
 
-    print("Total byte-addressable tiers:", total_byte_tiers)
+    print(f"Valid tier IDs for filtering (compressed only): {valid_tier_ids}")
+    print("Compressed tier ID mapping:")
+    for tid in sorted(tier_id_mapping.keys()):
+        description = tier_id_mapping[tid]
+        print(f"  pool_id {tid}: {description}")
     print(f"Fast tier indices (DRAM): {fast_tier_idxes}")
     print(f"Slow tier indices (OPTANE): {slow_tier_idxes}")
 except Exception as e:
     print(f"Warning: Failed to load tier config: {e}")
-    dram_optane_config = None
     # fatal error
-    print("Error: Could not determine DRAM/OPTANE tier indices from config. Exiting.")
+    print("Error: Could not determine tier indices from config. Exiting.")
     exit(1)
 
 
@@ -78,11 +93,21 @@ with open(args.input_file, "r") as f:
         data.append(entry)
 
 df = pd.DataFrame(data)
-# for the col timestamp, subtract from the first timestamp
-df['timestamp'] = df['timestamp'] - df['timestamp'].iloc[0]
 
-# convert to int
-df['timestamp'] = df['timestamp'].astype(int)
+# Filter data to only include configured compressed tiers
+initial_rows = len(df)
+df = df[df['pool_id'].isin(valid_tier_ids)]
+filtered_rows = len(df)
+print(f"Filtered data: {initial_rows} -> {filtered_rows} rows (kept only compressed tiers: {valid_tier_ids})")
+
+# for the col timestamp, subtract from the first timestamp
+if len(df) > 0:
+    df['timestamp'] = df['timestamp'] - df['timestamp'].iloc[0]
+    # convert to int
+    df['timestamp'] = df['timestamp'].astype(int)
+else:
+    print("Warning: No data remaining after filtering for compressed tiers")
+    exit(1)
 
 
 for pid in df['pool_id'].unique():
@@ -98,61 +123,68 @@ df['actual_size'] = df['nr_pages'] * 4096
 
 # print(df.head())
 
-palette = sns.color_palette("deep")[::-1]
+# Set up plot styling
+plt.style.use('default')
+fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+fig.suptitle('Compressed Tiers Statistics', fontsize=14)
 
-for plot_data in ["nr_compressed_size", "nr_pages", "faults", "actual_size"]:
+plot_configs = [
+    ("nr_compressed_size", "Compressed Size", "bytes", axes[0,0]),
+    ("nr_pages", "Number of Pages", "count", axes[0,1]), 
+    ("faults", "Page Faults", "count", axes[1,0]),
+    ("actual_size", "Actual Size", "bytes", axes[1,1])
+]
 
-    # in separate plots, faults, nr_pages. x axis timestamp y axis pool_id hue
-    ax=sns.lineplot(data=df, x='timestamp', y=plot_data, hue='pool_id', marker='o',palette="tab10")
+# Create legend labels once
+legend_labels = {}
+for tier in compressed_tiers:
+    pool_id = tier['offset']
+    backing_name = 'DRAM' if tier['backing_store'] in fast_tier_idxes else 'OPTANE'
+    legend_labels[pool_id] = f"T{pool_id}: {tier['compressor']}/{tier['pool_manager'][:3]}/{backing_name}"
 
-    # save
-    plt.xlabel("Time in seconds")
-    plt.ylabel(f"{plot_data}")
-
-    # format y axis to K, M, and B based on max value
-    def format_func(value, tick_number):
-        if value >= 1e9:
-            return f'{value/1e9:.0f}B'
-        elif value >= 1e6:
-            return f'{value/1e6:.0f}M'
-        elif value >= 1e3:
-            return f'{value/1e3:.1f}K'
-        else:
-            return str(int(value))
-
+# Plot each metric
+for plot_data, title, unit_type, ax in plot_configs:
+    # Plot lines for each pool_id
+    for pool_id in sorted(df['pool_id'].unique()):
+        pool_data = df[df['pool_id'] == pool_id]
+        label = legend_labels.get(pool_id, f"T{pool_id}")
+        ax.plot(pool_data['timestamp'], pool_data[plot_data], 
+               marker='o', markersize=4, linewidth=2, label=label)
     
-    # define a size formatter bytes to KB MB and GB
-    def size_formatter(x, pos):
-        if x >= 1e9:
-            return f'{x/1e9:.1f} GB'
-        elif x >= 1e6:
-            return f'{x/1e6:.1f} MB'
-        elif x >= 1e3:
-            return f'{x/1e3:.1f} KB'
-        else:
-            return f'{x:.0f} B'
-
-    if plot_data == "actual_size":
-        plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(size_formatter))
-    elif plot_data == "faults":
-        plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(format_func))
-    elif plot_data == "nr_pages":
-        plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(format_func))
-    elif plot_data == "nr_compressed_size":
-        plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(size_formatter))
-
-    # legend just unique pool_id
+    ax.set_xlabel("Time (seconds)")
+    ax.set_ylabel(title)
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
     
-    # Limit legend entries (e.g., top 5 pool_ids)
-    handles, labels = ax.get_legend_handles_labels()
-    keep = len(df['pool_id'].unique())
-    ax.legend(handles[:keep], labels[:keep], title='CT Tiers', loc='best')
+    # Format y-axis based on data type
+    if unit_type == "bytes":
+        def size_formatter(x, pos):
+            if x >= 1e9:
+                return f'{x/1e9:.1f}G'
+            elif x >= 1e6:
+                return f'{x/1e6:.1f}M'
+            elif x >= 1e3:
+                return f'{x/1e3:.1f}K'
+            else:
+                return f'{x:.0f}'
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(size_formatter))
+    elif unit_type == "count":
+        def count_formatter(x, pos):
+            if x >= 1e6:
+                return f'{x/1e6:.1f}M'
+            elif x >= 1e3:
+                return f'{x/1e3:.1f}K'
+            else:
+                return f'{x:.0f}'
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(count_formatter))
 
-    # add grid
-    plt.grid(zorder=9999,alpha=0.5)
+# Add legend to the last subplot
+axes[1,1].legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=True)
 
-    print("Saving PNG to", f"{directory}/plots/plot_zswap_{plot_data}.png")
-    plt.savefig(f"{directory}/plots/plot_zswap_{plot_data}.png", dpi=300,bbox_inches="tight")
+plt.tight_layout()
+print("Saving PNG to", f"{directory}/plots/plot_zswap_all_metrics.png")
+plt.savefig(f"{directory}/plots/plot_zswap_all_metrics.png", dpi=300, bbox_inches="tight")
+plt.close()
 
 
 # print(df)

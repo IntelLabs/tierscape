@@ -1,4 +1,6 @@
 all_checks_ok=1
+rm -f /tmp/tierscape_sanity_check_passed
+
 
 # get script dir
 SANITY_SCRIPT_DIR=$(dirname $(realpath $0))
@@ -26,8 +28,7 @@ check_path() {
         ${PS_HOME_DIR}
         ${ILP_HOME_DIR}
         ${PERF_BIN}
-        $MASIM_HOME
-        
+        $MASIM_HOME        
     )
     # appent /tmp to paths
     if [[ $ENABLE_NTIER -eq 1 ]]; then
@@ -92,6 +93,18 @@ function err() {
     echo -e "[ERR] \e[91m$1\e[0m"
 }
 
+# if ENABLE_NTIER is set, ensure the kernel name is 5.17.0-ntier-noiaa-v1+
+if [[ $ENABLE_NTIER -eq 1 ]]; then
+    KERNEL_NAME=$(uname -r)
+    if [[ $KERNEL_NAME != 5.17.0-ntier-noiaa-v1* ]]; then
+        echo "Error: ENABLE_NTIER is set, but kernel is not 5.17.0-ntier-noiaa-v1+. Current kernel: $KERNEL_NAME" > /dev/stderr
+        echo "Please install and boot into the correct kernel" > /dev/stderr
+        exit 1
+    else
+        echo "Kernel check passed: $KERNEL_NAME" > /dev/stderr
+    fi
+fi
+
 
 # check_machine
 flush_trace_file
@@ -99,3 +112,5 @@ check_path
 check_perf
 check_all_checks_ok
 THREADS=$(nproc)
+
+touch /tmp/tierscape_sanity_check_passed

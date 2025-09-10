@@ -1,6 +1,6 @@
-# ensure FAST_NODES is defined
-if [ -z ${FAST_NODES} ]; then
-	echo "Error: FAST_NODES is not set"
+# ensure FAST_NODE is defined
+if [ -z ${FAST_NODE} ]; then
+	echo "Error: FAST_NODE is not set"
 	exit 1
 fi
 
@@ -42,6 +42,8 @@ exec_pre_run(){
 		exit 1
 	fi
 	rm -rf /tmp/masim_addr
+
+	
 	return 0
 
 }
@@ -51,7 +53,7 @@ exec_post_run(){
 }
 
 
-BENCH_RUN="numactl -p ${FAST_NODES} -N ${FAST_NODES} ${MASIM_HOME}/${BENCH} ${MASIM_HOME}/configs/${WORKLOAD_FILE}"
+BENCH_RUN="numactl -p ${FAST_NODE} ${MASIM_HOME}/${BENCH} ${MASIM_HOME}/configs/${WORKLOAD_FILE}"
 KILL_CMD="pkill -9 ${BENCH}"
 
 export -f exec_pre_run
