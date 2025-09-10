@@ -3,6 +3,7 @@ all_checks_ok=1
 # get script dir
 SANITY_SCRIPT_DIR=$(dirname $(realpath $0))
 
+source ../skd_config.sh
 
 
 if [ $EUID -ne 0 ]
