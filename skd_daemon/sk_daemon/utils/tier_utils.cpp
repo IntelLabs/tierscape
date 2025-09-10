@@ -86,6 +86,7 @@ std::vector<TierInfo*> create_configured_tiers() {
 			tiers.push_back(new TierInfo(
 				config.virt_id,
 				config.mem_type,
+				config.backing_store,
 				config.tier_latency
 			));
 		}
@@ -110,7 +111,7 @@ TIERS_INFO::TIERS_INFO() {
 	std::sort(tiers.begin(), tiers.end(), compare_tiers);
 
 	for (struct TierInfo *t : tiers) {
-		fprintf(stderr, "Tier: %d type %s comp %s BS %d compression_ratio %f cost %d latency %d\n", t->get_virt_tier_id(), get_mem_type_string(t->type), t->compressor.c_str(), t->backing_store, t->compression_ratio, t->tier_cost, t->tier_latency);
+		fprintf(stderr, "Tier: %d type %s comp %s BS %d compression_ratio %f cost %d latency %d\n", t->get_virt_tier_id(), get_mem_type_string(t->mem_type), t->compressor.c_str(), t->backing_store, t->compression_ratio, t->tier_cost, t->tier_latency);
 	}
 }
 
@@ -233,7 +234,7 @@ int are_tiers_similar(int curr_tier_id, int dist_tier_id) {
 	TierInfo *dist_tier = TINFO->getTierInfofromID(dist_tier_id);
 
 	// check type, cost, and lat
-	if (curr_tier->type == dist_tier->type && curr_tier->tier_cost == dist_tier->tier_cost && curr_tier->tier_latency == dist_tier->tier_latency) {
+	if (curr_tier->mem_type == dist_tier->mem_type && curr_tier->tier_cost == dist_tier->tier_cost && curr_tier->tier_latency == dist_tier->tier_latency) {
 		return 1;
 	}
 
@@ -273,7 +274,7 @@ int push_a_region(REGION_SKD *curr_region, int pid, int dst_virt_tier) {
 			if (dst_tier->backing_store == SLOW_NODE) {
 				return ALREADY_IN_OPTANE;
 			}
-			// if (dst_tier->type == COMPRESSED) {
+			// if (dst_tier->mem_type == COMPRESSED) {
 			//     /* its already in swap and in the correct tier. */
 			//     return ALREADY_IN_ZSWAP;
 			// }
@@ -303,7 +304,7 @@ int push_a_region(REGION_SKD *curr_region, int pid, int dst_virt_tier) {
 
 	/* The page is guaranteed to be in DRAM  now. Now move it to the correct byte addressable tier.s */
 
-	if (dst_tier->type != COMPRESSED) {
+	if (dst_tier->mem_type != COMPRESSED) {
 		ret_moved_pages = move_to_dram_or_optane(curr_region, pid);
 		if (ret_moved_pages < 0) {
 			WARN_ONCE("move_to_dram_or_optane FAILED");

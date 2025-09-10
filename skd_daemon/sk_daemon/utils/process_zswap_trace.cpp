@@ -159,7 +159,7 @@ void add_to_sysctl_data_entries(TierInfo* data, bool isFreshData) {
 
 
     // pr_debug("Added to sysctl_data_entries: virt_tier_id: %lu, virt_tier_id: %d, nr_compressed_size: %lu, type: %s, compressor: %s, backing_store: %d, nr_pages: %lu, isCPU: %d, faults: %lu, compression_ratio: %f\n",
-    //     data->virt_tier_id, data->virt_tier_id, data->nr_compressed_size, data->type.c_str(), data->compressor.c_str(), data->backing_store, data->nr_pages, data->isCPU, data->faults, data->compression_ratio);
+    //     data->virt_tier_id, data->virt_tier_id, data->nr_compressed_size, data->mem_type.c_str(), data->compressor.c_str(), data->backing_store, data->nr_pages, data->isCPU, data->faults, data->compression_ratio);
 }
 
 TierInfo* get_sysctl_data_entry(uint16_t virt_tier_id) {
@@ -405,7 +405,7 @@ void* th_consume_zswap_pool_stats_events_2(void* ptr) {
             iss >> token;  // Get the second field ("nr_compressed_size")
             data->nr_compressed_size = stoul(token.substr(token.find("=") + 1));
             iss >> token;  // Get the third field ("type")
-            data->type = COMPRESSED;
+            data->mem_type = COMPRESSED;
             // token.substr(token.find("=") + 1);
             iss >> token;  // Get the fourth field ("compressor")
             data->compressor = token.substr(token.find("=") + 1);
@@ -461,7 +461,7 @@ void* th_consume_zswap_pool_stats_events_2(void* ptr) {
 
                 fprintf(log, "tier_id: %d (%f), nr_c_size: %lu, type: %s, comp: %s, BS: %d, nr_pages: %lu, isCPU: %d, faults: %lu\n",
                     sd->get_virt_tier_id(), sd->compression_ratio,
-                    sd->nr_compressed_size, get_mem_type_string(sd->type), sd->compressor.c_str(), sd->backing_store, sd->nr_pages, sd->isCPU, sd->faults);
+                    sd->nr_compressed_size, get_mem_type_string(sd->mem_type), sd->compressor.c_str(), sd->backing_store, sd->nr_pages, sd->isCPU, sd->faults);
 
                 if (sd->backing_store == 0) {
                     total_compressed_data_dram += sd->nr_compressed_size;

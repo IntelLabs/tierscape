@@ -42,6 +42,8 @@ exec_pre_run(){
 		exit 1
 	fi
 	rm -rf /tmp/masim_addr
+
+	
 	return 0
 
 }

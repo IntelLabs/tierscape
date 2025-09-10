@@ -11,7 +11,7 @@ import numpy as np
 import sys
 sys.path.append(".")
 from plot_utils import *
-from tier_config_simple import get_dram_optane_info
+from tier_config_simple import get_complete_uncompressed_tiers_info
 
 
 # create the argument parser
@@ -24,21 +24,30 @@ args = parser.parse_args()
 
 trend_sleep_duration = args.trend_sleep_duration
 
-# Load DRAM/OPTANE configuration from shared config
+# Load uncompressed tier configuration from shared config
 try:
-    dram_optane_config = get_dram_optane_info()
-    print(f"Loaded DRAM/OPTANE config: {dram_optane_config}")
+    uncompressed_tiers = get_complete_uncompressed_tiers_info()
+    print(f"Loaded uncompressed tiers config: {uncompressed_tiers}")
 
-    total_byte_tiers = len(dram_optane_config)
-    fast_tier_idxes = [tier['virt_id'] for tier in dram_optane_config.values() if tier and tier['mem_type'] == 0]  # DRAM
-    slow_tier_idxes = [tier['virt_id'] for tier in dram_optane_config.values() if tier and tier['mem_type'] == 1]  # OPTANE
+    # Get configured tier IDs for filtering
+    configured_tier_ids = [tier['virt_id'] for tier in uncompressed_tiers]
+    fast_tier_idxes = [tier['virt_id'] for tier in uncompressed_tiers if tier['mem_type'] == 'DRAM']
+    slow_tier_idxes = [tier['virt_id'] for tier in uncompressed_tiers if tier['mem_type'] == 'OPTANE']
 
-    print("Total byte-addressable tiers:", total_byte_tiers)
+    # Create tier mapping for display
+    tier_mapping = {}
+    for tier in uncompressed_tiers:
+        tier_mapping[tier['virt_id']] = f"{tier['virt_id_name']} ({tier['mem_type']})"
+
+    print(f"Configured tier IDs: {configured_tier_ids}")
     print(f"Fast tier indices (DRAM): {fast_tier_idxes}")
     print(f"Slow tier indices (OPTANE): {slow_tier_idxes}")
+    print("Tier mapping:", tier_mapping)
 except Exception as e:
     print(f"Warning: Failed to load tier config: {e}")
-    dram_optane_config = None
+    # fatal error
+    print("Error: Could not determine DRAM/OPTANE tier indices from config. Exiting.")
+    exit(1)
 
 # if input file is not provided, exit
 if args.input_file is None:
@@ -51,7 +60,8 @@ dram_usage_data=[]
 optane_usage_data=[]
 total_usage_data=[]
 
-numa_node_data={}
+# Store data for each configured tier
+tier_data = {tier_id: [] for tier_id in configured_tier_ids}
 
 directory = os.path.dirname(args.input_file)
 with open(args.input_file, "r") as f:
@@ -61,39 +71,29 @@ with open(args.input_file, "r") as f:
             line = ' '.join(line.split())
             cols = line.split(' ')
             
-            # try:
-            #     if cols[5]==0:
-            #         continue # the pgrogram exited and this are stray entries
-            # except IndexError:
-            #     print("Index error in line:", line)
-            #     print(cols)
-            #     exit(1)
-            
             try:
-                for idx in fast_tier_idxes:
-                    dram_data = int(cols[idx+1])
-                for idx in slow_tier_idxes:
-                    optane_data = int(cols[idx+1])
+                # Collect data for configured tiers only
+                dram_data = 0
+                optane_data = 0
+                
+                for tier_id in configured_tier_ids:
+                    tier_value = int(cols[tier_id+1])
+                    tier_data[tier_id].append(tier_value)
+                    
+                    # Accumulate by memory type
+                    if tier_id in fast_tier_idxes:
+                        dram_data += tier_value
+                    elif tier_id in slow_tier_idxes:
+                        optane_data += tier_value
 
-                total_data = int(cols[total_byte_tiers+1])
+                total_data = dram_data + optane_data
+                
             except Exception as e:
-                print(f"Error parsing line: {line} {cols} {total_byte_tiers+1} with error {e}")
+                print(f"Error parsing line: {line} {cols} with error {e}")
                 # print stack trace
                 import traceback
                 traceback.print_exc()
                 exit(1)
-
-            # dram_data = int(cols[1]) + int(cols[2])
-            # optane_data = int(cols[3]) + int(cols[4])
-            # total_data = int(cols[5])
-            
-            # loop thrugh all cols except last
-            for i in range(1, len(cols)-1):
-                # append to numa_node_data
-                if i not in numa_node_data:
-                    numa_node_data[i] = []
-                numa_node_data[i].append(int(cols[i]))
-                
            
             dram_usage_data.append(dram_data)
             optane_usage_data.append(optane_data)
@@ -139,40 +139,43 @@ directory=f"{directory}/plots"
 def comma_format(x, pos):
     return "{:,.0f}".format(x)
 
-# apply the formatter to the y-axis ticks
+# # apply the formatter to the y-axis ticks
 formatter = ticker.FuncFormatter(comma_format)
 
-ax=plt.gca()
+# ax=plt.gca()
 
-dram_x_data = np.linspace(0, (len(dram_usage_data)-1)*trend_sleep_duration, num=len(dram_usage_data))
-optane_x_data = np.linspace(0, (len(optane_usage_data)-1)*trend_sleep_duration, num=len(dram_usage_data))
-# print(x_data)
-plt.plot(dram_x_data, dram_usage_data, label="DRAM", color="blue")
-plt.plot(optane_x_data, optane_usage_data, label="Optane", color="red")
+# dram_x_data = np.linspace(0, (len(dram_usage_data)-1)*trend_sleep_duration, num=len(dram_usage_data))
+# optane_x_data = np.linspace(0, (len(optane_usage_data)-1)*trend_sleep_duration, num=len(dram_usage_data))
+# # print(x_data)
+# plt.plot(dram_x_data, dram_usage_data, label="DRAM", color="blue")
+# plt.plot(optane_x_data, optane_usage_data, label="Optane", color="red")
 
-plt.xlabel('Time in seconds',fontsize=lfont-4)
-plt.ylabel('VmRSS in MB',fontsize=lfont-4)
+# plt.xlabel('Time in seconds',fontsize=lfont-4)
+# plt.ylabel('VmRSS in MB',fontsize=lfont-4)
 
-plt.legend(fontsize=lfont-10)
+# plt.legend(fontsize=lfont-10)
 
-ax.yaxis.set_major_formatter(formatter)
-plt.grid()
+# ax.yaxis.set_major_formatter(formatter)
+# plt.grid()
 
-format_axis(ax,lfont=lfont-6)
+# format_axis(ax,lfont=lfont-6)
 
-# plt.savefig(f"{directory}/plot_numastat.png", dpi=300,bbox_inches="tight")
+# # plt.savefig(f"{directory}/plot_numastat.png", dpi=300,bbox_inches="tight")
 
 # ===============================
 color_array=["blue","red","green","orange","purple","pink","brown"]
 style_arr=["-","--","-.",":","-","--","-."]
 
-# new figure., plot numa_node_data
+# new figure., plot configured tier data
 fig, ax = plt.subplots()
-# plot each numa node data
-for i in range(1, len(numa_node_data)+1):
-    # plot the data
-    x_data = np.linspace(0, (len(numa_node_data[i])-1)*trend_sleep_duration, num=len(numa_node_data[i]))
-    plt.plot(x_data, numa_node_data[i], label=f"Node {i-1}", color=color_array[i-1], linestyle=style_arr[i-1],linewidth=2)
+# plot each configured tier data
+for i, tier_id in enumerate(sorted(configured_tier_ids)):
+    tier_label = f"Node {tier_id}"
+    x_data = np.linspace(0, (len(tier_data[tier_id])-1)*trend_sleep_duration, num=len(tier_data[tier_id]))
+    plt.plot(x_data, tier_data[tier_id], label=tier_label, 
+             color=color_array[i % len(color_array)], 
+             linestyle=style_arr[i % len(style_arr)], linewidth=2)
+
 plt.xlabel('Time in seconds',fontsize=lfont-4)
 plt.ylabel('Size in MB',fontsize=lfont-4)
 plt.legend(fontsize=lfont-10)
@@ -180,10 +183,10 @@ ax.yaxis.set_major_formatter(formatter)
 plt.grid()
 format_axis(ax,lfont=lfont-6)
 if args.plot_pdf==1:
-    print("Saving to ", f"{directory}/plot_numastat_numa_nodes.png")
-    plt.savefig(f"{directory}/plot_numastat_numa_nodes.png", dpi=300,bbox_inches="tight")
+    print("Saving to ", f"{directory}/plot_numastat_configured_tiers.png")
+    plt.savefig(f"{directory}/plot_numastat_configured_tiers.png", dpi=300,bbox_inches="tight")
 elif args.plot_pdf==2:
-    print("Saving to ", f"{directory}/plot_numastat_numa_nodes.pdf")
-    plt.savefig(f"{directory}/plot_numastat_numa_nodes.pdf", dpi=300,bbox_inches="tight")
+    print("Saving to ", f"{directory}/plot_numastat_configured_tiers.pdf")
+    plt.savefig(f"{directory}/plot_numastat_configured_tiers.pdf", dpi=300,bbox_inches="tight")
 else:
     print("Invalid plot_pdf option. Exiting")
