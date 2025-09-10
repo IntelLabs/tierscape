@@ -3,7 +3,7 @@ all_checks_ok=1
 # get script dir
 SANITY_SCRIPT_DIR=$(dirname $(realpath $0))
 
-source ../skd_config.sh
+source ${SANITY_SCRIPT_DIR}/../skd_config.sh
 
 
 if [ $EUID -ne 0 ]
@@ -15,6 +15,7 @@ fi
 
 
 check_path() {
+    rm -f /tmp/skd_path_missing
     # create an array of path and ensure all of the exists
     paths=(
         ${PS_HOME_DIR}
@@ -42,6 +43,7 @@ check_path() {
 
                 echo "Path $path does not exist"
                 all_checks_ok=0
+                touch /tmp/skd_path_missing
                 break
             fi
             # exit 1

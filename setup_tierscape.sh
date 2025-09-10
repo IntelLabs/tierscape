@@ -29,11 +29,17 @@ function check_last_cmd_ret_code(){
 # ----------
 function skd_config(){
     source ${BASE_DIR}/skd_daemon/skd_config.sh
+    
     check_last_cmd_ret_code $? source_config
 }
 
 function check_sanity(){
     bash ${BASE_DIR}/skd_daemon/shell_scripts/sanity_checks.sh 2>&1 | tee ${BASE_DIR}/logs/sanity_checks.log
+    # if /tmp/skd_path_missing exists, then exit 1
+    if [ -f /tmp/skd_path_missing ]; then
+        echo "FATAL: One or more paths are missing. Please check the logs/sanity_checks.log file" >&2
+        exit 1
+    fi
     check_last_cmd_ret_code $? sanity
 }
 
