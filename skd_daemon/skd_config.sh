@@ -2,7 +2,8 @@
 FAST_NODES="0"
 SLOW_NODES="1"
 # path to perf binary as per the system
-PERF_BIN="/data/sandeep/idxd/tools/perf/perf"
+# PERF_BIN="/data/sandeep/idxd/tools/perf/perf"
+PERF_BIN="/usr/bin/perf"
 # ====================
 
 BASELINE_MODE=-1
