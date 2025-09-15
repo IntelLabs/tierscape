@@ -144,23 +144,6 @@ formatter = ticker.FuncFormatter(comma_format)
 
 # ax=plt.gca()
 
-# dram_x_data = np.linspace(0, (len(dram_usage_data)-1)*trend_sleep_duration, num=len(dram_usage_data))
-# optane_x_data = np.linspace(0, (len(optane_usage_data)-1)*trend_sleep_duration, num=len(dram_usage_data))
-# # print(x_data)
-# plt.plot(dram_x_data, dram_usage_data, label="DRAM", color="blue")
-# plt.plot(optane_x_data, optane_usage_data, label="Optane", color="red")
-
-# plt.xlabel('Time in seconds',fontsize=lfont-4)
-# plt.ylabel('VmRSS in MB',fontsize=lfont-4)
-
-# plt.legend(fontsize=lfont-10)
-
-# ax.yaxis.set_major_formatter(formatter)
-# plt.grid()
-
-# format_axis(ax,lfont=lfont-6)
-
-# # plt.savefig(f"{directory}/plot_numastat.png", dpi=300,bbox_inches="tight")
 
 # ===============================
 color_array=["blue","red","green","orange","purple","pink","brown"]

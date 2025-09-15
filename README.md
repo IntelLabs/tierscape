@@ -228,10 +228,12 @@ kernel.zswap_print_stat = 1
 
 ## Executing Experiments with Kernel Patches
 
-Rebuild TierScape with kernel patches enabled:
+Rebuild TierScape with kernel patches enabled.
+Ensure the configuration is done as in [Configuration](#configuration) section.
 ```bash
 $ cd <root dir of repo>
 $ make setup ENABLE_NTIER=1
+$ make tier_masim_ilp agg_mode=2
 ```
 Run MASIM or memcached experiments as described in the [Quick Start](#2-quick-start-without-kernel-patches) section.
 
@@ -276,18 +278,16 @@ Similarly for hemem.
 #### Figures
 After runing each experiments, there will be plot directory created inside the experiment directory.
 
-- `plot_numastat_numa_nodes.png`: NUMA distribution of memory usage over time
+- `plot_numastat_configured_tiers.png`: NUMA distribution of memory usage over time
 - `plot_psi.png`: Pressure Stall Information over time
 - `plot_regions_curr_tier.png`: The current tier distribution of memory regions over time as seen by Tierscape
 - `plot_regions_curr_tier_sorted.png`: The current tier distribution of memory regions over time as seen by Tierscape (sorted by hotness)
-- `plot_regions_dst_tier.png`: The destination tier distribution of memory regions over time as seen by Tierscape
-- `plot_regions_dst_tier_sorted.png`: The destination tier distribution of memory regions over time as seen by Tierscape (sorted by hotness)
+- `plot_regions_dst_tier.png`: The destination tier distribution of memory regions over time as seen by Tierscape -- may differ from current tier due to migration delays
+- `plot_regions_dst_tier_sorted.png`: The destination tier distribution of memory regions over time as seen by Tierscape (sorted by hotness) -- may differ from current tier due to migration delays
 - `plot_regions_hotness.png`: The hotness distribution of memory regions over time as seen reported by PEBS
 - `plot_stacked_tco_sep.png`: Stacked TCO breakdown over time
 - `plot_stacked_zswap_usage.png`: Stacked zswap usage breakdown over time
-- `plot_zswap_faults.png`: zswap faults over time
-- `plot_zswap_nr_compressed_size.png`: zswap compressed size over time
-- `plot_zswap_nr_pages.png`: zswap number of pages over time
+- `plot_zswap_all_metrics.png`: zswap faults, compressed size, original size, and pages over time
 - `status_VmRSS.png`: Resident Set Size over time
 - `vmstat_pgmigrate_success.png`: Successful page migrations over time
 
