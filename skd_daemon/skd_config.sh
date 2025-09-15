@@ -1,6 +1,6 @@
 # Change these============
-FAST_NODE=1
-SLOW_NODE=3
+FAST_NODE=0
+SLOW_NODE=1
 # path to perf binary as per the system
 # PERF_BIN="/data/sandeep/idxd/tools/perf/perf"
 PERF_BIN="/usr/bin/perf"

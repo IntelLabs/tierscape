@@ -31,8 +31,8 @@ using namespace std;
 // #define CONFIG_DISTRIBUT_FAULTS
 
 /* autoupdated on running make setup from the root dir as per skd_config.sh */
-#define FAST_NODE 1
-#define SLOW_NODE 3
+#define FAST_NODE 0
+#define SLOW_NODE 1
 
 
 #define MAX_ITMES 5

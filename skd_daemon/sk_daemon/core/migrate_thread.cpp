@@ -173,7 +173,6 @@ void thread_helper_pusher(int _thread_id, uint64_t actual_start_idx, uint64_t en
                 pr_warn("PAGES NOT MOVED. %d\n", moved_pages);
                 break;
             default:
-                // WARN_ONCE("Unknown return value from push_a_region \n");
                 pr_warn("Unknown return value from push_a_region %d\n", moved_pages);
                 exit(1);
             }

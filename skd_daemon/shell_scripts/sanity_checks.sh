@@ -19,7 +19,7 @@ if [ $EUID -ne 0 ]
 fi
 
 
-
+# TODO add check to ensure FAST_NODE and SLOW_NODE are set and same in model.h and skd_config.sh
 
 check_path() {
     rm -f /tmp/skd_path_missing
