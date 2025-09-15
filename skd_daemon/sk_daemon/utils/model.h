@@ -153,8 +153,8 @@ struct REGION_SKD_BASE {
 
     public:
 	uint64_t start_address = 0;
+	int curr_virt_tier = FAST_NODE; //
 	int dst_virt_tier = -1;	 //
-	int curr_virt_tier = -1; //
 };
 
 // static bool is_printed_all_valid = false;

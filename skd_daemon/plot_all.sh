@@ -89,24 +89,25 @@ python3 ${PLOT_DIR}/plot_pcm_bw.py -i ${MAIN_LOG_DIR}/pcm_memory --pdf $SAVE_PDF
 python3 ${PLOT_DIR}/plot_vmstat.py -i ${MAIN_LOG_DIR}/vmstat -m pgmigrate_success -p 1
 python3 ${PLOT_DIR}/plot_status.py -i ${MAIN_LOG_DIR}/status -m VmRSS -p 1
 
-# python3 ${PLOT_DIR}/plot_skdlog.py -i ${SKD_LOG} --pdf $SAVE_PDF
-# python3 ${PLOT_DIR}/plot_perftrend_metric.py -i ${MAIN_LOG_DIR}/perf_trend -p 1 -ts 1 -m mem_load_retired.local_pmm
 
 python3 ${PLOT_DIR}/plot_ops_and_avgops.py -i ${BENCH_EXEC_FILE} --pdf $SAVE_PDF
 
 python3 ${PLOT_DIR}/plot_stacked_regions.py -i ${SKD_REGIONS} --pdf $SAVE_PDF
 
 
-if [ -f ${PEBS_RAW_EVENTS}.gz ]; then
-    # decompress the file
-    gunzip -f ${PEBS_RAW_EVENTS}.gz
-    # plot the pebs hotness
-    python3 ${PLOT_DIR}/scatter_based_pebs_raw.py -i ${PEBS_RAW_EVENTS} --pdf $SAVE_PDF
-    # compress the file back
-    gzip -f ${PEBS_RAW_EVENTS}
-else
-    echo "${PEBS_RAW_EVENTS}.gz not found"
-fi
+# ----------- UNUSED
+# python3 ${PLOT_DIR}/plot_skdlog.py -i ${SKD_LOG} --pdf $SAVE_PDF
+# python3 ${PLOT_DIR}/plot_perftrend_metric.py -i ${MAIN_LOG_DIR}/perf_trend -p 1 -ts 1 -m mem_load_retired.local_pmm
+# if [ -f ${PEBS_RAW_EVENTS}.gz ]; then
+#     # decompress the file
+#     gunzip -f ${PEBS_RAW_EVENTS}.gz
+#     # plot the pebs hotness
+#     python3 ${PLOT_DIR}/scatter_based_pebs_raw.py -i ${PEBS_RAW_EVENTS} --pdf $SAVE_PDF
+#     # compress the file back
+#     gzip -f ${PEBS_RAW_EVENTS}
+# else
+#     echo "${PEBS_RAW_EVENTS}.gz not found"
+# fi
 
 deactivate
 # # ${PLOT_DIR}/post_process.sh $PERF_FINAL_STATS $ILP_PERF_STATS 2>&1 | tee ${MAIN_LOG_DIR}/plots/post_process.log

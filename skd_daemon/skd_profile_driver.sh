@@ -5,6 +5,7 @@ if [ $EUID -ne 0 ]; then
 fi
 
 
+
 SKD_HOME_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "SKD_HOME_DIR: $SKD_HOME_DIR"
 export SKD_HOME_DIR
@@ -13,6 +14,8 @@ export SKD_HOME_DIR
 # MUST be here==============
 
 source /tmp/tierscape_env.sh
+# call sanity_checks.sh
+source $(dirname $(realpath $0))/shell_scripts/sanity_checks.sh
 EVAL_DIR="${BASE_DIR}"
 export EVAL_DIR
 

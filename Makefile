@@ -45,6 +45,13 @@ python_clean:
 setup:
 	@echo "Running setup_tierscape.sh with sudo...ENABLE_NTIER:${ENABLE_NTIER}"
 	@mkdir -p logs
+# 	if ENABLE_NTIER is 1 then call ntier_setup also
+	@if [ ${ENABLE_NTIER} -eq 1 ]; then \
+		echo "ENABLE_NTIER is 1, running ntier_setup..."; \
+		$(MAKE) ntier_setup; \
+	else \
+		echo "ENABLE_NTIER is 0, skipping ntier_setup..."; \
+	fi
 	@sudo bash setup_tierscape.sh ${ENABLE_NTIER} > logs/setup_tierscape.log
 
 # =======================================
