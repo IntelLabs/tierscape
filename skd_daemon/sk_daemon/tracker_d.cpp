@@ -370,7 +370,7 @@ int main(int argc, char** argv) {
     pthread_create(&t_tid, NULL, th_pebs_window_timeout, &pid);
 
 #ifdef ENABLE_NTIER
-    pthread_create(&z_tid, NULL, th_consume_zswap_pool_stats_events, &pid);
+   pthread_create(&z_tid, NULL, th_consume_zswap_pool_stats_events, &pid);
 #endif
 
     while (is_process_running(pid) && is_program_alive) {

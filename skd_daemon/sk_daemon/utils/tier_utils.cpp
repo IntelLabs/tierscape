@@ -210,7 +210,8 @@ int move_to_dram_or_optane(REGION_SKD *curr_region, int pid) {
 	int moved = number_of_pages;
 	ret = move_pages(pid, number_of_pages, addrs, nodes, status, MPOL_MF_MOVE_ALL);
 	if (ret < 0) {
-		return ret;
+		pr_err("move_pages syscall failed with %d %s to node %d for %d pages\n", errno, strerror(errno), target_node, number_of_pages);
+		moved = -errno;
 	} else if (ret > 0) {
 		pr_debug("move_pages failed to move  %d out of %d pages\n", ret, number_of_pages);
 		moved -= ret;
@@ -307,7 +308,8 @@ int push_a_region(REGION_SKD *curr_region, int pid, int dst_virt_tier) {
 	if (dst_tier->mem_type != COMPRESSED) {
 		ret_moved_pages = move_to_dram_or_optane(curr_region, pid);
 		if (ret_moved_pages < 0) {
-			WARN_ONCE("move_to_dram_or_optane FAILED");
+			// WARN_ONCE("move_to_dram_or_optane FAILED");
+			pr_warn("move_to_dram_or_optane FAILED %d\n", ret_moved_pages);
 			ret = 1;
 		}
 	}

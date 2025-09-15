@@ -104,6 +104,8 @@ def function_plot_data(df, to_plot, plot_avg=True, statname=None,label_sep_tco=N
         plt.savefig(f"{args.plot_dir}/plot_stacked_{statname}.pdf", dpi=100,bbox_inches="tight")
 
 # ==================================
+# print keys in raw_data
+print("Keys in raw_data: ", raw_data.keys())
 dram_usage = raw_data['dram_usage_mb']
 zswap_dram_usage_mb = raw_data['zswap_dram_usage_mb']
 optane_usage = raw_data['optane_usage_mb']

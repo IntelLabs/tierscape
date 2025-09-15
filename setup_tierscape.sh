@@ -73,6 +73,12 @@ function configure_ilp(){
 function configure_skd_daemon(){
     cd ${BASE_DIR}/skd_daemon/sk_daemon
     make clean; make -j ENABLE_NTIER=${ENABLE_NTIER} 2>&1 | tee ${BASE_DIR}/logs/make_skd.log
+    # check the presense of tracker_d.o in sk_daemon
+    if [ ! -f ${BASE_DIR}/skd_daemon/sk_daemon/tracker_d.o ]; then
+        echo "Error: skd_daemon build failed. tracker_d.o not found" >&2
+        echo "Check logs/make_skd.log for details" >&2
+        exit 1
+    fi
     check_last_cmd_ret_code $? make_skd
 }
 
