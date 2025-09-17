@@ -18,7 +18,7 @@ EXP_NAME="exp_eurosys26_EN${ENABLE_NTIER}"
 
 SKD_PERF_EVENTS="-e cpu/event=0xd0,umask=0x81/ppu -e cpu/event=0xd0,umask=0x82/ppu -e cpu/event=0xd0,umask=0x11/ppu -e cpu/event=0xd0,umask=0x12/ppu"
 SKD_FREQ=10000
-SKD_WIN_SIZE=5
+SKD_WIN_SIZE=20
 SKD_HOTNESS_THRESHOLD=2
 
 # -1 baseline 0 HEMEM 1 ILP 2 WATERFALL. Default is baseline

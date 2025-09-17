@@ -35,8 +35,9 @@ using namespace std;
 #define SLOW_NODE 1
 
 
-#define MAX_ITMES 5
+#define MAX_HOTNESS_ENTRIES 5
 #define PAGESIZE 4096
+#define OPTANE_PREFERRED 1
 
 #define REMOTE_ILP_SERVER "10.223.93.197"
 #define LOCAL_ILP_SERVER "127.0.0.1"
@@ -369,7 +370,7 @@ struct REGION_SKD : public REGION_SKD_BASE {
 	uint64_t region_id;
 
 #ifdef CONFIG_HOT_AVG_MODE
-	uint64_t latest_hotness[MAX_ITMES];
+	uint64_t latest_hotness[MAX_HOTNESS_ENTRIES];
 #endif
 
 	// int curr_virt_tier {
@@ -421,15 +422,15 @@ struct REGION_SKD : public REGION_SKD_BASE {
 		if (latest_index == -1)
 			latest_index = 0;
 		latest_hotness[latest_index] = _hotness;
-		valid_items = min(MAX_ITMES, (latest_index + 1)); /* as latest_index is zero based, hence +1 */
-		latest_index = (latest_index + 1) % MAX_ITMES;	  /* for the next time */
+		valid_items = min(MAX_HOTNESS_ENTRIES, (latest_index + 1)); /* as latest_index is zero based, hence +1 */
+		latest_index = (latest_index + 1) % MAX_HOTNESS_ENTRIES;	  /* for the next time */
 
 		uint64_t sum = 0;
 		for (int i = 0; i < valid_items; i++) {
 			sum += latest_hotness[i];
 		}
 		hotness = (sum / (uint64_t)valid_items);
-		if (valid_items == MAX_ITMES && is_printed_all_valid == false) {
+		if (valid_items == MAX_HOTNESS_ENTRIES && is_printed_all_valid == false) {
 			WARN_ONCE("Avg Hotness Working fine\n");
 		}
 	}

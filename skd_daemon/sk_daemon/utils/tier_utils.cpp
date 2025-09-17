@@ -62,7 +62,7 @@ bool compare_tiers(TierInfo *a, TierInfo *b) {
 //     return false;
 // }
 
-int OPTANE_PREFERRED = 1;
+// int OPTANE_PREFERRED = 1;
 
 // Implementation of the configuration helper function
 std::vector<TierInfo*> create_configured_tiers() {

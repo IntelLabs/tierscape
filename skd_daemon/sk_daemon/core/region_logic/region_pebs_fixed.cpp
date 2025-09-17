@@ -359,12 +359,17 @@ int REGION_PEBS_FIXED::assign_events_to_regions(vector<AddrEntry*> page_addrs) {
     // executed a python script in the same folder named concolve.py
     char cmd[CHAR_FILE_LEN+100];
     sprintf(cmd, "python3 ${SKD_HOME_DIR}/sk_daemon/convolve.py %s\n", gauss_log_file);
-    system(cmd);
+    if (system(cmd) != 0) {
+        pr_err("FATAL: Error executing convolve.py\n");
+    }
 
     // read the output of the python script from /tmp/hoteness_update and update the hotness of all the regions
     FILE* hotness_update_file = fopen("/tmp/hotness_updated", "r");
     for (uint64_t y = 0; y < total_regions; y++) {
-        fscanf(hotness_update_file, "%lu", &regions[y]->collected_hotness);
+        if (fscanf(hotness_update_file, "%f", &regions[y]->percentile_hotness) != 1) {
+            pr_err("FATAL: Error reading hotness from file /tmp/hotness_updated\n");
+            // exit(1);
+        }
     }
     fclose(hotness_update_file);
     pr_debug("Convolved updated\n");
@@ -377,7 +382,11 @@ int REGION_PEBS_FIXED::assign_events_to_regions(vector<AddrEntry*> page_addrs) {
     percentile_val_arr.clear();
     if (FILE* file = fopen("/tmp/comm", "r")) {
         char line[100];
-        fgets(line, sizeof(line), file);
+        if (fgets(line, sizeof(line), file) == NULL) {
+            pr_err("FATAL: Error reading from file /tmp/comm\n");
+            fclose(file);
+            return -1;
+        }
         fclose(file);
         char* pch;
         pch = strtok(line, " ");
