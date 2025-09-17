@@ -264,7 +264,6 @@ void migrate_compress_regions_parallel(REGION_BASE* region_logic, int pid, int w
 }
 
 
-extern int OPTANE_PREFERRED;
 int generate_low_event_warn = 2;
 
 void* th_process_events_and_migrate(int pid, int window_seconds) {
