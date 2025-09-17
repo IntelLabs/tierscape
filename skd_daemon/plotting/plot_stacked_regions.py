@@ -98,9 +98,9 @@ with open(args.input_file, 'r') as f:
 
 complete_df = pd.DataFrame(regions_data)
 
-# print(complete_df.head())
-# print(np.unique(complete_df["curr_tier_id"]))
-# print(np.unique(complete_df["time_id"]))
+# print unique entires in curr_tier_id and count along side
+print(complete_df["curr_tier_id"].value_counts().sort_index())
+print(complete_df["dst_tier_id"].value_counts().sort_index())
 
 
 
@@ -139,7 +139,8 @@ def function_plot_data(imshow_data, total_tiers, is_sorted=False, stats_name="")
         labels = [f'Tier {i}' for i in range(total_tiers)]
 
         patches = [mpatches.Patch(color=colors[i], label=labels[i]) for i in range(total_tiers)]
-        ax.legend(handles=patches, loc='upper center', bbox_to_anchor=(0.35, 1.19),fontsize=16, ncol=5)
+        ax.legend(handles=patches, loc='upper center', bbox_to_anchor=(0.35, 1.24),fontsize=16, ncol=3)
+        # ax.legend(handles=patches, loc='best',fontsize=16, ncol= total_tiers % 3)
 
 
     # windows = imshow_data.shape[1]
@@ -171,6 +172,7 @@ def function_plot_data(imshow_data, total_tiers, is_sorted=False, stats_name="")
 
 # # sorted =============
 total_tiers=len(np.unique(complete_df["curr_tier_id"]))
+total_tiers=len(np.unique(complete_df["dst_tier_id"]))
 
 imshow_data = complete_df.pivot(index='region_id', columns='time_id', values='curr_tier_id')
 function_plot_data(imshow_data, total_tiers, False,"curr_tier")
@@ -178,6 +180,7 @@ imshow_data_sorted = imshow_data.apply(lambda x: sorted(x), axis=0)
 function_plot_data(imshow_data_sorted, total_tiers, True, "curr_tier")
 
 
+total_tiers=len(np.unique(complete_df["dst_tier_id"]))
 imshow_data = complete_df.pivot(index='region_id', columns='time_id', values='dst_tier_id')
 function_plot_data(imshow_data, total_tiers, False,"dst_tier")
 imshow_data_sorted = imshow_data.apply(lambda x: sorted(x), axis=0)
