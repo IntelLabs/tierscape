@@ -210,8 +210,14 @@ int move_to_dram_or_optane(REGION_SKD *curr_region, int pid) {
 	int moved = number_of_pages;
 	ret = move_pages(pid, number_of_pages, addrs, nodes, status, MPOL_MF_MOVE_ALL);
 	if (ret < 0) {
-		pr_err("move_pages syscall failed with %d %s to node %d for %d pages\n", errno, strerror(errno), target_node, number_of_pages);
-		moved = -errno;
+		if(errno != -22){
+			// pr_err("move_pages syscall failed with %d %s to node %d for %d pages\n", errno, strerror(errno), target_node, number_of_pages);
+			WARN_ONCE("move_pages syscall failed. This is expected towards the end if the process exited\n");
+			// moved = -errno;
+		}else{
+			pr_err("move_pages syscall failed. This is expected towards the end if the process exited with %d %s to node %d for %d pages. This can happen if the target node is not available\n", errno, strerror(errno), target_node, number_of_pages);
+			moved = -errno;
+		}
 	} else if (ret > 0) {
 		pr_debug("move_pages failed to move  %d out of %d pages\n", ret, number_of_pages);
 		moved -= ret;

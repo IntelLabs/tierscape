@@ -50,7 +50,7 @@ setup:
 		echo "ENABLE_NTIER is 1, running ntier_setup..."; \
 		$(MAKE) ntier_setup; \
 	else \
-		echo "ENABLE_NTIER is 0, skipping ntier_setup..."; \
+		echo "ENABLE_NTIER is 0, skipping ntier_setup... (compressed tiers will not be used.)"; \
 	fi
 	@sudo bash setup_tierscape.sh ${ENABLE_NTIER} > logs/setup_tierscape.log
 
