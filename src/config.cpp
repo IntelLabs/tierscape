@@ -1,22 +1,27 @@
 #include "config.h"
 #include "util.h"
 
-#include <fstream>
-#include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
+#include <cstdlib>
+#include <fstream>
+#include <sstream>
+#include <unordered_set>
 
 uint64_t parse_size(const std::string& s) {
     if (s.empty()) return 0;
-    char suffix = std::toupper(s.back());
+    char suffix = static_cast<char>(std::toupper(static_cast<unsigned char>(s.back())));
     std::string num_part = s;
     uint64_t multiplier = 1;
-
-    if (suffix == 'K') { multiplier = 1024ULL; num_part.pop_back(); }
+    if (suffix == 'K') { multiplier = 1024ULL;             num_part.pop_back(); }
     else if (suffix == 'M') { multiplier = 1024ULL * 1024; num_part.pop_back(); }
     else if (suffix == 'G') { multiplier = 1024ULL * 1024 * 1024; num_part.pop_back(); }
-
-    return std::stoull(num_part) * multiplier;
+    try {
+        return std::stoull(num_part) * multiplier;
+    } catch (...) {
+        return 0;
+    }
 }
 
 static std::string trim(const std::string& s) {
@@ -27,9 +32,23 @@ static std::string trim(const std::string& s) {
 }
 
 static std::string unquote(const std::string& s) {
-    if (s.size() >= 2 && s.front() == '"' && s.back() == '"')
+    if (s.size() >= 2 && s.front() == '"' && s.back() == '"') {
         return s.substr(1, s.size() - 2);
+    }
     return s;
+}
+
+namespace {
+// Known keys per section — used to warn on typos.
+const std::unordered_set<std::string> k_known_tiers      = {"hot_node", "cold_node"};
+const std::unordered_set<std::string> k_known_sampling   = {"events", "frequency", "window_seconds"};
+const std::unordered_set<std::string> k_known_classif    = {"hot_percentile"};
+const std::unordered_set<std::string> k_known_migration  = {"threads", "max_pages_per_window", "region_size", "max_idle_windows"};
+const std::unordered_set<std::string> k_known_daemon     = {"pidfile", "verbose", "log_file", "perf_bin"};
+
+void warn_unknown(const std::string& section, const std::string& key) {
+    log_warn("Unknown config key: [%s].%s (ignored)", section.c_str(), key.c_str());
+}
 }
 
 int config_load(Config& cfg, const std::string& path) {
@@ -47,11 +66,8 @@ int config_load(Config& cfg, const std::string& path) {
 
     while (std::getline(file, line)) {
         std::string trimmed = trim(line);
-
-        // skip empty lines and comments
         if (trimmed.empty() || trimmed[0] == '#') continue;
 
-        // end of multi-line array
         if (in_array) {
             if (trimmed[0] == ']') {
                 in_array = false;
@@ -61,9 +77,7 @@ int config_load(Config& cfg, const std::string& path) {
                 array_values.clear();
                 continue;
             }
-            // parse array element: "value",
             std::string val = trimmed;
-            // remove trailing comma
             if (!val.empty() && val.back() == ',') val.pop_back();
             val = trim(val);
             val = unquote(val);
@@ -71,24 +85,19 @@ int config_load(Config& cfg, const std::string& path) {
             continue;
         }
 
-        // section header
         if (trimmed[0] == '[' && trimmed.back() == ']') {
             section = trimmed.substr(1, trimmed.size() - 2);
             continue;
         }
 
-        // key = value
         auto eq = trimmed.find('=');
         if (eq == std::string::npos) continue;
 
-        std::string key = trim(trimmed.substr(0, eq));
+        std::string key   = trim(trimmed.substr(0, eq));
         std::string value = trim(trimmed.substr(eq + 1));
 
-        // check if value starts an array
         if (!value.empty() && value[0] == '[') {
-            // inline array or multi-line?
             if (value.back() == ']') {
-                // inline array: [val1, val2]
                 std::string inner = value.substr(1, value.size() - 2);
                 std::istringstream ss(inner);
                 std::string item;
@@ -99,15 +108,14 @@ int config_load(Config& cfg, const std::string& path) {
                     if (!item.empty()) items.push_back(item);
                 }
                 if (section == "sampling" && key == "events") cfg.events = items;
+                else warn_unknown(section, key);
             } else {
-                // multi-line array
-                in_array = true;
+                in_array  = true;
                 array_key = key;
                 array_values.clear();
-                // check if there's content after [
                 std::string after = trim(value.substr(1));
                 if (!after.empty()) {
-                    if (!after.empty() && after.back() == ',') after.pop_back();
+                    if (after.back() == ',') after.pop_back();
                     after = trim(after);
                     after = unquote(after);
                     if (!after.empty()) array_values.push_back(after);
@@ -118,34 +126,44 @@ int config_load(Config& cfg, const std::string& path) {
 
         value = unquote(value);
 
-        // assign to config
-        if (section == "tiers") {
-            if (key == "hot_node") cfg.hot_node = std::stoi(value);
-            else if (key == "cold_node") cfg.cold_node = std::stoi(value);
-        } else if (section == "sampling") {
-            if (key == "frequency") cfg.frequency = std::stoi(value);
-            else if (key == "window_seconds") cfg.window_seconds = std::stoi(value);
-        } else if (section == "classification") {
-            if (key == "hot_percentile") cfg.hot_percentile = std::stof(value);
-        } else if (section == "migration") {
-            if (key == "threads") cfg.threads = std::stoi(value);
-            else if (key == "max_pages_per_window") cfg.max_pages_per_window = std::stoi(value);
-            else if (key == "region_size") {
-                cfg.region_size_str = value;
-                cfg.region_size_bytes = parse_size(value);
+        try {
+            if (section == "tiers") {
+                if (!k_known_tiers.count(key)) { warn_unknown(section, key); continue; }
+                if (key == "hot_node")  cfg.hot_node  = std::stoi(value);
+                else if (key == "cold_node") cfg.cold_node = std::stoi(value);
+            } else if (section == "sampling") {
+                if (!k_known_sampling.count(key)) { warn_unknown(section, key); continue; }
+                if (key == "frequency")           cfg.frequency      = std::stoi(value);
+                else if (key == "window_seconds") cfg.window_seconds = std::stoi(value);
+            } else if (section == "classification") {
+                if (!k_known_classif.count(key)) { warn_unknown(section, key); continue; }
+                if (key == "hot_percentile") cfg.hot_percentile = std::stof(value);
+            } else if (section == "migration") {
+                if (!k_known_migration.count(key)) { warn_unknown(section, key); continue; }
+                if (key == "threads") cfg.threads = std::stoi(value);
+                else if (key == "max_pages_per_window") cfg.max_pages_per_window = std::stoull(value);
+                else if (key == "max_idle_windows")     cfg.max_idle_windows     = std::stoi(value);
+                else if (key == "region_size") {
+                    cfg.region_size_str   = value;
+                    cfg.region_size_bytes = parse_size(value);
+                }
+            } else if (section == "daemon") {
+                if (!k_known_daemon.count(key)) { warn_unknown(section, key); continue; }
+                if (key == "pidfile")        cfg.pidfile  = value;
+                else if (key == "verbose")   cfg.verbose  = (value == "true" || value == "1");
+                else if (key == "log_file")  cfg.log_file = value;
+                else if (key == "perf_bin")  cfg.perf_bin = value;
+            } else if (!section.empty()) {
+                warn_unknown(section, key);
             }
-        } else if (section == "daemon") {
-            if (key == "pidfile") cfg.pidfile = value;
-            else if (key == "verbose") cfg.verbose = (value == "true" || value == "1");
-            else if (key == "log_file") cfg.log_file = value;
-            else if (key == "perf_bin") cfg.perf_bin = value;
+        } catch (const std::exception& e) {
+            log_warn("Config: failed to parse [%s].%s = %s (%s)",
+                     section.c_str(), key.c_str(), value.c_str(), e.what());
         }
     }
 
-    // validate region_size
     if (cfg.region_size_bytes == 0) {
         cfg.region_size_bytes = parse_size(cfg.region_size_str);
     }
-
     return 0;
 }

@@ -122,38 +122,71 @@ cd masim_mod && make
 
 ### Run a Quick Test
 
+The automated test script handles masim launch, daemon attachment, numastat logging,
+PEBS sample dumping, and cleanup. Each run saves all artifacts in a timestamped directory.
+
 ```bash
-# Terminal 1: Start masim (4GB, 4 regions, 60s per phase)
-numactl --membind=0 ./masim_mod/masim masim_mod/configs/test_tier_4gb_long
-
-# Terminal 2: Attach tierscaped
-sudo src/build/tierscaped -f -v -c tierscaped.toml \
-    -p $(pgrep -f "masim.*test_tier") --window 8 --hot-pct 75
-
-# Terminal 3: Watch migration happen
-watch -n 2 "numastat -p $(pgrep -f 'masim.*test_tier')"
+# One command — runs masim (4GB stairs, 100s) + tierscaped (10s window)
+bash masim_mod/run_eval.sh
 ```
 
-**Expected result:** Memory moves from node 0 → node 1 as cold regions are demoted. The actively-accessed region stays on node 0.
+This produces an experiment directory under `masim_mod/eval/exp-<YYYYMMDD_HHMMSS>/` containing:
 
-### Example Output
+| File | Description |
+|------|-------------|
+| `config.toml` | Daemon configuration used |
+| `masim.log` | masim output (regions, phases) |
+| `tierscaped.log` | Daemon log with per-window stats |
+| `numastat.log` | Periodic NUMA memory snapshots |
+| `samples.dump` | Raw PEBS samples (`time_ms addr`) |
 
+### Generate Plots
+
+```bash
+# Generate migration + access pattern plots
+python3 masim_mod/plotting/plot_migration.py --eval-dir masim_mod/eval/exp-<timestamp>
+
+# Generate migration rate (promoted/demoted) plot
+python3 masim_mod/plotting/plot_migration_rate.py --eval-dir masim_mod/eval/exp-<timestamp>
 ```
-[INFO] tierscaped started: PID=587881, hot_node=0, cold_node=1, window=8s
-[VERB] Window 1: 515 regions with data
-[VERB] Classification: threshold=42, 164 hot, 351 cold
-[VERB] Migration: 262631 pages moved, 515 regions, 0 errors
-[INFO] Window 1: moved 262631 pages (515 regions), 0 in-place, 0 errors
+
+### Example Results
+
+**NUMA Node Migration** — Memory moving from Node 0 (hot) to Node 1 (cold) over time:
+
+![NUMA Migration](masim_mod/eval/figures/migration.png)
+
+**PEBS Access Pattern** — Real sampled addresses showing the stairs workload (each phase accesses a different 1GB region):
+
+![Access Pattern](masim_mod/eval/figures/access_pattern.png)
+
+**Migration Rate** — Per-window breakdown of promoted (→ hot) vs demoted (→ cold) pages:
+
+![Migration Rate](masim_mod/eval/figures/migration_rate.png)
+
+### Reproduce from Scratch
+
+```bash
+# 1. Build everything
+cd masim_mod && make && cd ..
+cd src/build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j$(nproc) && cd ../..
+
+# 2. Run experiment (takes ~2 minutes)
+bash masim_mod/run_eval.sh
+
+# 3. Generate all plots
+EXP=$(ls -td masim_mod/eval/exp-* | head -1)
+python3 masim_mod/plotting/plot_migration.py --eval-dir "$EXP"
+python3 masim_mod/plotting/plot_migration_rate.py --eval-dir "$EXP"
+
+# 4. View results
+ls "$EXP"/*.png
 ```
 
-### Available masim Configs
+### masim Config
 
-| Config | Memory | Duration | Use |
-|--------|--------|----------|-----|
-| `test_tier_4gb_long` | 4 GB | ~4 min | Quick validation |
-| `stairs_plot_1gb` | 4 GB | 20s | Smoke test |
-| `stairs_100GB_10GB` | ~90 GB | 8s | Large-scale test |
-| `stairs_1TB_100g` | ~900 GB | minutes | Stress test |
+The default config (`masim_mod/configs/stairs_4gb_100s`) runs a staircase pattern:
+4 regions × 1GB, 4 phases × 25s each, one region accessed per phase.
 
 ## CLI Reference
 
@@ -205,105 +238,22 @@ CLI arguments override config file values.
 └── LICENSE
 ```
 
+## Documentation
+
+Detailed architecture & operations docs live in [docs/](docs/):
+
+- [Architecture](docs/architecture.md) — components & data flow
+- [Design](docs/design.md) — rationale for each design decision
+- [Region management](docs/region-management.md)
+- [Sampling](docs/sampling.md) (PEBS pipeline)
+- [Classification](docs/classification.md)
+- [Migration](docs/migration.md) (`move_pages`, VMA filtering)
+- [Lifecycle](docs/lifecycle.md) (signals, daemonization)
+- [Configuration](docs/configuration.md)
+- [Testing](docs/testing.md)
+- [Troubleshooting](docs/troubleshooting.md)
+
 ## License
 
 See [LICENSE](LICENSE).
-FAST_NODE: 0
-SLOW_NODE: 1
-Disabling the prefetching
-kernel.zswap_print_stat = 1
-[ 3904.686103] zswap: Looking for a zpool zsmalloc zstd 0
-[ 3904.686104] zswap: It looks like we already have a pool. zsmalloc zstd 0
-[ 3904.686104] zswap: zswap: Adding zpool Type zsmalloc Compressor zstd BS 0
-[ 3904.686105] zswap: Total pools now 4
-[ 3904.686117] zswap: Looking for a zpool zsmalloc lzo 0
-[ 3904.686118] zswap: using existing pool zsmalloc lzo 0
-[ 3904.686125] zswap: ..
-                 Request for a new pool: pool and compressor is zsmalloc lzo backing store value is 0
-[ 3904.686125] zswap: Looking for a zpool zsmalloc lzo 0
-[ 3904.686126] zswap: It looks like we already have a pool. zsmalloc lzo 0
-[ 3904.686126] zswap: zswap: Adding zpool Type zsmalloc Compressor lzo BS 0
-[ 3904.686126] zswap: Total pools now 4
-[ 3904.686745]
-               ------------
-               Total zswap pools 4
-[ 3904.686747] zswap: Tier CData       pool        compressor  backing     Pages       isCPUComp   Faults
-[ 3904.686749] zswap: 0    0           zsmalloc    lzo         0           0           true        0
-[ 3904.686751] zswap: 1    0           zsmalloc    zstd        0           0           true        0
-[ 3904.686752] zswap: 2    0           zsmalloc    zstd        1           0           true        0
-[ 3904.686753] zswap: 3    0           zbud        zstd        0           0           true        0
-
-
-```
-
-## Executing Experiments with Kernel Patches
-
-Rebuild TierScape with kernel patches enabled.
-Ensure the configuration is done as in [Configuration](#configuration) section.
-```bash
-$ cd <root dir of repo>
-$ make setup ENABLE_NTIER=1
-$ make tier_masim_ilp agg_mode=2
-```
-Run MASIM or memcached experiments as described in the [Quick Start](#2-quick-start-without-kernel-patches) section.
-
-The results will be saved in the dir witn suffix `_EN1` indicating kernel patches are enabled.
-
-## 4. Understanding the Results
-After running experiments, results are stored in the following locations:
-- **Performance Data**: Results are stored in `evaluation/` directories
-
-The experiments generate data comparing different tiering strategies:
-- **Baseline (-1)**: No tiering, all data in single tier
-- **HeMem (0)**: HeMem-based tiering algorithm
-- **ILP (1)**: Integer Linear Programming-based optimal tiering
-- **Waterfall (2)**: Waterfall-based tiering strategy
-
-### Dir structure and figures
-
-Example: ``perflog-ILP-F10000-HT.9-R0-PT2-W5-20250909-200453``
-Breakdown of the dir name:
-- `perflog`: Prefix indicating performance logs
-- `ILP`: Tiering strategy used (Baseline, HeMem, ILP, Waterfall)
-- `F10000`: PEBS frequency (10000)
-- `HT.9`: Hotness threshold (0.9)
-- `R0`: Remote mode (0 disabled 1 enabled)
-- `PT2`: Number of push threads to move data around
-- `W5`: Profile window in seconds
-- `20250909-200453`: Timestamp of the experiment run
-
-Exmplae: `perflog-WATERFALL-F10000-HT25-PT2-W5-20250909-195830`
-
-Breakdown of the dir name:
-- `perflog`: Prefix indicating performance logs
-- `WATERFALL`: Tiering strategy used (Baseline, HeMem, ILP, Waterfall)
-- `F10000`: PEBS frequency (10000)
-- `HT25`: Hotness threshold (25 percentile)
-- `PT2`: Number of push threads to move data around
-- `W5`: Profile window in seconds
-- `20250909-195830`: Timestamp of the experiment run
-
-Similarly for hemem.
-
-#### Figures
-After runing each experiments, there will be plot directory created inside the experiment directory.
-
-- `plot_numastat_configured_tiers.png`: NUMA distribution of memory usage over time
-- `plot_psi.png`: Pressure Stall Information over time
-- `plot_regions_curr_tier.png`: The current tier distribution of memory regions over time as seen by Tierscape
-- `plot_regions_curr_tier_sorted.png`: The current tier distribution of memory regions over time as seen by Tierscape (sorted by hotness)
-- `plot_regions_dst_tier.png`: The destination tier distribution of memory regions over time as seen by Tierscape -- may differ from current tier due to migration delays
-- `plot_regions_dst_tier_sorted.png`: The destination tier distribution of memory regions over time as seen by Tierscape (sorted by hotness) -- may differ from current tier due to migration delays
-- `plot_regions_hotness.png`: The hotness distribution of memory regions over time as seen reported by PEBS
-- `plot_stacked_tco_sep.png`: Stacked TCO breakdown over time
-- `plot_stacked_zswap_usage.png`: Stacked zswap usage breakdown over time
-- `plot_zswap_all_metrics.png`: zswap faults, compressed size, original size, and pages over time
-- `status_VmRSS.png`: Resident Set Size over time
-- `vmstat_pgmigrate_success.png`: Successful page migrations over time
-
-
-## Reproducing the results in the paper
-TODO
-
-
 

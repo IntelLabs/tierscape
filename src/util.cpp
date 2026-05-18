@@ -1,72 +1,89 @@
 #include "util.h"
 
-#include <cstdio>
+#include <cerrno>
 #include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include <unistd.h>
+#include <ctime>
 #include <signal.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 static bool g_verbose = false;
 
 void log_set_verbose(bool v) { g_verbose = v; }
 
-void log_info(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    fprintf(stderr, "[INFO] ");
-    vfprintf(stderr, fmt, args);
-    fprintf(stderr, "\n");
-    va_end(args);
+static void log_prefix(FILE* fp, const char* level) {
+    // ISO-8601 UTC timestamp.
+    char ts[32];
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
+    struct tm tm_utc;
+    gmtime_r(&now.tv_sec, &tm_utc);
+    int n = std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", &tm_utc);
+    std::snprintf(ts + n, sizeof(ts) - n, ".%03ldZ", now.tv_nsec / 1000000);
+    std::fprintf(fp, "%s %s ", ts, level);
 }
+
+#define LOG_IMPL(level)                                  \
+    do {                                                 \
+        log_prefix(stderr, level);                       \
+        va_list args;                                    \
+        va_start(args, fmt);                             \
+        std::vfprintf(stderr, fmt, args);                \
+        va_end(args);                                    \
+        std::fputc('\n', stderr);                        \
+    } while (0)
+
+void log_info(const char* fmt, ...)    { LOG_IMPL("[INFO]"); }
+void log_warn(const char* fmt, ...)    { LOG_IMPL("[WARN]"); }
+void log_err(const char* fmt, ...)     { LOG_IMPL("[ERR ]"); }
 
 void log_verbose(const char* fmt, ...) {
     if (!g_verbose) return;
-    va_list args;
-    va_start(args, fmt);
-    fprintf(stderr, "[VERB] ");
-    vfprintf(stderr, fmt, args);
-    fprintf(stderr, "\n");
-    va_end(args);
-}
-
-void log_warn(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    fprintf(stderr, "[WARN] ");
-    vfprintf(stderr, fmt, args);
-    fprintf(stderr, "\n");
-    va_end(args);
-}
-
-void log_err(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    fprintf(stderr, "[ERR]  ");
-    vfprintf(stderr, fmt, args);
-    fprintf(stderr, "\n");
-    va_end(args);
+    LOG_IMPL("[VERB]");
 }
 
 bool is_process_running(pid_t pid) {
     if (pid <= 0) return false;
-    return (kill(pid, 0) == 0);
+    return kill(pid, 0) == 0;
 }
 
 bool can_read_proc(pid_t pid) {
     char path[64];
-    snprintf(path, sizeof(path), "/proc/%d/maps", pid);
-    return (access(path, R_OK) == 0);
+    std::snprintf(path, sizeof(path), "/proc/%d/maps", pid);
+    return access(path, R_OK) == 0;
 }
 
 int write_pidfile(const char* path) {
-    FILE* f = fopen(path, "w");
+    FILE* f = std::fopen(path, "w");
     if (!f) return -1;
-    fprintf(f, "%d\n", getpid());
-    fclose(f);
+    std::fprintf(f, "%d\n", getpid());
+    std::fclose(f);
     return 0;
 }
 
 int remove_pidfile(const char* path) {
     return unlink(path);
+}
+
+bool parse_int(const char* s, long& out) {
+    if (!s || !*s) return false;
+    errno = 0;
+    char* end = nullptr;
+    long v = std::strtol(s, &end, 10);
+    if (errno != 0 || end == s || (end && *end != '\0')) return false;
+    out = v;
+    return true;
+}
+
+bool parse_float(const char* s, double& out) {
+    if (!s || !*s) return false;
+    errno = 0;
+    char* end = nullptr;
+    double v = std::strtod(s, &end);
+    if (errno != 0 || end == s || (end && *end != '\0')) return false;
+    out = v;
+    return true;
 }
