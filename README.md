@@ -154,15 +154,15 @@ python3 masim_mod/plotting/plot_migration_rate.py --eval-dir masim_mod/eval/exp-
 
 **NUMA Node Migration** — Memory moving from Node 0 (hot) to Node 1 (cold) over time:
 
-![NUMA Migration](masim_mod/eval/figures/migration.png)
+![NUMA Migration](docs/figures/migration.png)
 
 **PEBS Access Pattern** — Real sampled addresses showing the stairs workload (each phase accesses a different 1GB region):
 
-![Access Pattern](masim_mod/eval/figures/access_pattern.png)
+![Access Pattern](docs/figures/access_pattern.png)
 
 **Migration Rate** — Per-window breakdown of promoted (→ hot) vs demoted (→ cold) pages:
 
-![Migration Rate](masim_mod/eval/figures/migration_rate.png)
+![Migration Rate](docs/figures/migration_rate.png)
 
 ### Reproduce from Scratch
 
