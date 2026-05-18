@@ -1,0 +1,24 @@
+# 1 thread, 4 x 1GB regions, 4 phases x 5s each (~20s total)
+1
+
+s0, 1073741824
+s1, 1073741824
+s2, 1073741824
+s3, 1073741824
+
+#phases
+phase 0
+5000
+s0, 0, 4096, 100, ro
+
+phase 1
+5000
+s1, 0, 4096, 100, ro
+
+phase 2
+5000
+s2, 0, 4096, 100, ro
+
+phase 3
+5000
+s3, 0, 4096, 100, ro
