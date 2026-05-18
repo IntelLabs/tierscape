@@ -1,0 +1,24 @@
+# Test config: 4 x 1GB regions, 60 seconds per phase
+# Total runtime: ~4 minutes, 4GB total
+s0, 1073741824
+s1, 1073741824
+s2, 1073741824
+s3, 1073741824
+
+#phases
+#region, random_access, stride, probability, mode
+phase 0
+60000
+s0, 0, 4096, 100, ro
+
+phase 1
+60000
+s1, 0, 4096, 100, ro
+
+phase 2
+60000
+s2, 0, 4096, 100, ro
+
+phase 3
+60000
+s3, 0, 4096, 100, ro

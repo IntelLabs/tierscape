@@ -1,5 +1,6 @@
 compress_dataset/
 eval_masim_perf_ovhd/
+eval/
 bin/*
 masim
 

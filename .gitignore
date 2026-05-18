@@ -1,7 +1,5 @@
-logs
-setup.log
-.tierscape_venv
-.vscode
-evaluation/*
-memtier_benchmark
-skd_daemon/plotting/test_tier_config.py
+src/build/
+.vscode/
+*.o
+masim_mod/masim
+masim_mod/eval/

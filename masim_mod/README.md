@@ -1,50 +1,51 @@
-# parl_memory_masim
+# masim — Memory Access Simulator
 
+A configurable memory access simulator used for testing and validating `tierscaped`.
 
 ## Build
 
-````
+```bash
 make
-````
+```
 
 ## Run
 
-``
+```bash
 ./masim configs/<config file>
-``
+```
 
-## Coverage analysis
-We are going to use the config file ``stairs_1TB_100g`` for this purpose.
+## Config File Format
 
-``
-./masim configs/stairs_1TB_100g
-``
-We verified using Intel PIN that total memory accesses are 20,971,520,000.
+Each config file defines memory regions and access patterns:
 
-### Explanation on \#of acccess
-Our microbenchmark allocates approximately 900 GB of memory. Out of this 900GB, the benchmark sequentially reads 400GB of data in a loop. We set the loop count value to 200, so as the benchmark executes for a minute or so.
-The application reads a single byte from each page (instead of reading the whole 4KB page).
+```
+<total_bytes> <region_size_bytes>
+<num_phases>
+<phase_duration_seconds> <active_region_start> <active_region_end>
+...
+```
 
-Here, total access in one loop is 104,857,600 (#of pages in 400GB). Total number of = 104,857,600*200 (as it executes 200 times) = 20,971,520,000.
+## Available Configs
 
+| Config | Total Memory | Regions | Duration | Purpose |
+|--------|-------------|---------|----------|---------|
+| `test_tier_4gb_long` | 4 GB | 4 × 1 GB | ~4 min | Quick `tierscaped` validation |
+| `stairs_plot_1gb` | 4 GB | 4 × 1 GB | ~20 s | Smoke test |
+| `stairs_100GB_10GB` | ~90 GB | 9 × 10 GB | ~8 s | Large-scale test |
+| `stairs_1TB_100g` | ~900 GB | 9 × 100 GB | minutes | Stress test |
 
-## Coverage using PEBS
+## Testing with tierscaped
 
-````
-/usr/bin/perf record -d -e cpu/event=0xd0,umask=0x83/ppu -c -- ./masim configs/stairs_1TB_100g
+Bind masim to one NUMA node, then let `tierscaped` migrate cold pages:
 
-````
-The event ''0xd0,umask=0x83/ppu'' corresponds to MEM_INST_RETIRED.ANY on an SPR machine.
+```bash
+# Start masim on node 0
+numactl --membind=0 ./masim configs/test_tier_4gb_long
 
-### Results for different values of c
+# In another terminal, attach tierscaped
+sudo ../src/build/tierscaped -f -v -c ../tierscaped.toml -p $(pgrep masim)
 
-|     Value    	|     Events   captured    	|     Coverage    	|     Perf.   Overhead    	|
-|---	|---	|---	|---	|
-|     10    	|     67,452,719    	|     0.3216%    	|     159.49%    	|
-|     100    	|     57,410,586    	|     0.2738%    	|     156.79%    	|
-|     1000    	|     58,904,213    	|     0.2809%    	|     160.96%    	|
-|     2000    	|     55,973,632    	|     0.2669%    	|     153.08%    	|
-|     5000    	|     53,566,036    	|     0.2554%    	|     147.33%    	|
-|     10000    	|     40,616,668    	|     0.1937%    	|     139.72%    	|
-|     100000    	|     2,939,584    	|     0.0140%    	|     109.96%    	|
+# Watch migration in a third terminal
+watch -n 2 "numastat -p $(pgrep masim)"
+```
 

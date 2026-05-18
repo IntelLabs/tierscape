@@ -1,0 +1,31 @@
+# Test config for this machine (Xeon Gold 6554S, kernel 6.15.0-rc3)
+# Uses symbolic event names with :P precise modifier
+
+[tiers]
+hot_node = 0
+cold_node = 1
+
+[sampling]
+events = [
+    "mem_inst_retired.all_loads:P",
+    "mem_inst_retired.all_stores:P",
+    "mem_inst_retired.stlb_miss_loads:P",
+    "mem_inst_retired.stlb_miss_stores:P",
+]
+# Period: sample every N event occurrences (perf -c flag)
+frequency = 10000
+window_seconds = 10
+
+[classification]
+hot_percentile = 25.0
+
+[migration]
+threads = 2
+max_pages_per_window = 5000000
+region_size = "2M"
+
+[daemon]
+pidfile = "/tmp/tierscaped.pid"
+verbose = true
+log_file = ""
+perf_bin = "/data/sandeep/idxd/tools/perf/perf"

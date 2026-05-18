@@ -1,0 +1,32 @@
+# TierScape Daemon Configuration
+# Two-tier byte-addressable memory tiering
+
+[tiers]
+hot_node = 0
+cold_node = 1
+
+[sampling]
+# PEBS events: all loads, all stores, STLB miss loads, STLB miss stores
+events = [
+    "cpu/event=0xd0,umask=0x81/ppu",
+    "cpu/event=0xd0,umask=0x82/ppu",
+    "cpu/event=0xd0,umask=0x11/ppu",
+    "cpu/event=0xd0,umask=0x12/ppu",
+]
+frequency = 10000
+window_seconds = 20
+
+[classification]
+# Regions at or above this percentile of hotness → hot tier
+hot_percentile = 25.0
+
+[migration]
+threads = 2
+max_pages_per_window = 5000000
+region_size = "2M"
+
+[daemon]
+pidfile = "/tmp/tierscaped.pid"
+verbose = false
+log_file = ""
+perf_bin = "/usr/bin/perf"
