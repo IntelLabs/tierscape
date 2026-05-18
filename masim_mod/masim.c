@@ -25,6 +25,11 @@ int quiet;
 int skip_asm = 0;
 enum rw_mode default_rw_mode = READ_WRITE;
 
+/* Number of worker threads for load (memset) and read/access phases.
+ * Set from the first integer paragraph of the config file (default 1).
+ */
+int g_nr_threads = 1;
+
 void* overload_malloc(size_t size) {
     void* ptr;
     if( size > 1000){
@@ -84,6 +89,7 @@ struct access_config {
     ssize_t nr_regions;
     struct phase* phases;
     ssize_t nr_phases;
+    int nr_threads;
 };
 
 #define RAND_BATCH 1000
@@ -100,14 +106,23 @@ static void init_rndints(void) {
 }
 
 /*
- * Returns a random integer
+ * Returns a random integer.
+ * Thread-safe: rndints table is read-only after init_rndints(); each thread
+ * keeps its own cursor via __thread storage.
  */
 static int rndint(void) {
-    static int rndofs;
-    static int rndarr;
+    static __thread int rndofs;
+    static __thread int rndarr;
+    static __thread unsigned int seed;
+    static __thread int seeded;
+
+    if (!seeded) {
+        seed = (unsigned int)(time(NULL) ^ (unsigned long)pthread_self());
+        seeded = 1;
+    }
 
     if (rndofs == RAND_ARR_SZ) {
-        rndarr = rand() % RAND_BATCH;
+        rndarr = rand_r(&seed) % RAND_BATCH;
         rndofs = 0;
     }
 
@@ -334,19 +349,72 @@ void print_memory_status() {
     printf("\n");
 }
 
-void exec_phase(struct phase* phase) {
-    struct access* pattern;
+/* Per-worker context for exec_phase. */
+struct phase_worker_arg {
+    int tid;
+    int nr_threads;
+    struct phase *phase;
+    int total_pages;
+    /* Private copy of pattern array so last_offset/last_page are per-thread. */
+    struct access *patterns;
+    /* In OPS_MODE: loops this worker is responsible for. */
+    uint32_t worker_loops;
+#ifndef OPS_MODE
+    unsigned long long cpu_cycle_ms;
+    unsigned long long start_tsc;
+#endif
+    /* Outputs */
     unsigned long long nr_access;
+    unsigned long worker_us;
+};
+
+static void *phase_worker(void *arg) {
+    struct phase_worker_arg *w = (struct phase_worker_arg *)arg;
+    struct phase *phase = w->phase;
+    struct access *pattern;
+    unsigned long long local_ops = 0;
     int randn;
     size_t i;
+    struct timeval ts, te;
 
-    struct timeval fstop, fstart;
+    gettimeofday(&ts, NULL);
 
 #ifdef OPS_MODE
-    uint32_t total_loops = phase->time_ms;
-    // print nr_patterns
-
+    uint32_t total_loops = w->worker_loops;
+    while (total_loops-- > 0)
 #else
+    while (1)
+#endif
+    {
+        randn = rndint() % phase->total_probability;
+        for (i = 0; i < phase->nr_patterns; i++) {
+            int prob_start, prob_end;
+
+            pattern = &w->patterns[i];
+            prob_start = pattern->prob_start;
+            prob_end = prob_start + pattern->probability;
+            if (randn >= prob_start && randn < prob_end)
+                local_ops += do_access(pattern, w->total_pages);
+        }
+#ifndef OPS_MODE
+        if (aclk_clock() - w->start_tsc > w->cpu_cycle_ms * phase->time_ms)
+            break;
+#endif
+    }
+
+    gettimeofday(&te, NULL);
+    w->nr_access = local_ops;
+    w->worker_us = (te.tv_sec - ts.tv_sec) * 1000000UL +
+                   (te.tv_usec - ts.tv_usec);
+    return NULL;
+}
+
+void exec_phase(struct phase* phase) {
+    int nr_threads = g_nr_threads > 0 ? g_nr_threads : 1;
+    struct timeval fstop, fstart;
+    int t, i;
+
+#ifndef OPS_MODE
     static unsigned long long cpu_cycle_ms;
     unsigned long long start;
 
@@ -354,52 +422,83 @@ void exec_phase(struct phase* phase) {
         cpu_cycle_ms = aclk_freq() / 1000;
 
     start = aclk_clock();
-
 #endif
+
     int total_pages = phase->patterns[0].mregion->sz / 4096;
-    fprintf(stderr, "Total pages: %d\n", total_pages);
-    nr_access = 0;
-    gettimeofday(&fstart, NULL);
+    fprintf(stderr, "Total pages: %d  threads: %d\n", total_pages, nr_threads);
 
     if (hintmethod != NONE)
         hint_access_pattern(phase);
 
-#ifndef OPS_MODE
-    while (1)
-#else
-    while (total_loops-- > 0)
-#endif
-    {
-        randn = rndint() % phase->total_probability;
+    pthread_t *tids = (pthread_t *)overload_malloc(sizeof(pthread_t) * nr_threads);
+    struct phase_worker_arg *wargs = (struct phase_worker_arg *)overload_malloc(
+        sizeof(struct phase_worker_arg) * nr_threads);
+
+    gettimeofday(&fstart, NULL);
+
+    for (t = 0; t < nr_threads; t++) {
+        wargs[t].tid = t;
+        wargs[t].nr_threads = nr_threads;
+        wargs[t].phase = phase;
+        wargs[t].total_pages = total_pages;
+        wargs[t].nr_access = 0;
+        wargs[t].worker_us = 0;
+        /* Per-thread copy of patterns so last_offset/last_page are private. */
+        wargs[t].patterns = (struct access *)overload_malloc(
+            sizeof(struct access) * phase->nr_patterns);
         for (i = 0; i < phase->nr_patterns; i++) {
-            int prob_start, prob_end;
-
-            pattern = &phase->patterns[i];
-            prob_start = pattern->prob_start;
-            prob_end = prob_start + pattern->probability;
-            if (randn >= prob_start && randn < prob_end)
-                nr_access += do_access(pattern, total_pages);
+            wargs[t].patterns[i] = phase->patterns[i];
+            wargs[t].patterns[i].last_offset = 0;
+            wargs[t].patterns[i].last_page = 0;
         }
-
-#ifndef OPS_MODE
-        if (aclk_clock() - start > cpu_cycle_ms * phase->time_ms)
-            break;
+#ifdef OPS_MODE
+        /* split total_loops across threads; remainder goes to tid 0 */
+        wargs[t].worker_loops = phase->time_ms / nr_threads +
+            (t == 0 ? (phase->time_ms % nr_threads) : 0);
+#else
+        wargs[t].cpu_cycle_ms = cpu_cycle_ms;
+        wargs[t].start_tsc = start;
 #endif
     }
 
+    for (t = 0; t < nr_threads; t++) {
+        if (pthread_create(&tids[t], NULL, phase_worker, &wargs[t]) != 0) {
+            perror("pthread_create(phase_worker)");
+            exit(1);
+        }
+    }
+    for (t = 0; t < nr_threads; t++)
+        pthread_join(tids[t], NULL);
+
     gettimeofday(&fstop, NULL);
+
+    unsigned long wall_us = (fstop.tv_sec - fstart.tv_sec) * 1000000UL +
+                            (fstop.tv_usec - fstart.tv_usec);
+    unsigned long long total_ops = 0;
+    for (t = 0; t < nr_threads; t++) {
+        total_ops += wargs[t].nr_access;
+        fprintf(stderr, "THREAD %d ops=%llu time_us=%lu\n",
+                t, wargs[t].nr_access, wargs[t].worker_us);
+    }
+
+    double wall_sec = wall_us / 1000000.0;
+    double thp_ops_per_s = wall_sec > 0 ? (double)total_ops / wall_sec : 0.0;
+
     fprintf(stderr, "%s   REGION_TIME %lu us. Total Ops: %llu\n",
 #ifdef OPS_MODE
         "OPS_MODE",
 #else
         "TIME_MODE",
 #endif
-        (fstop.tv_sec - fstart.tv_sec) * 1000000 + fstop.tv_usec - fstart.tv_usec, nr_access);
+        wall_us, total_ops);
+    fprintf(stderr, "REGION_TIME_SEC %f\n", wall_sec);
+    fprintf(stderr, "PHASE_THROUGHPUT ops=%'llu time_us=%'lu thp=%'.2f ops/s threads=%d\n",
+            total_ops, wall_us, thp_ops_per_s, nr_threads);
 
-    // print region time in seconds
-    fprintf(stderr, "REGION_TIME_SEC %f\n", (fstop.tv_sec - fstart.tv_sec) + (fstop.tv_usec - fstart.tv_usec) / 1000000.0);
-
-    // print_memory_status();
+    for (t = 0; t < nr_threads; t++)
+        free(wargs[t].patterns);
+    free(wargs);
+    free(tids);
 }
 
 #include <stdio.h>
@@ -409,6 +508,19 @@ void exec_phase(struct phase* phase) {
 
 unsigned long region_addr;
 unsigned long region_size;
+
+/* Per-thread argument and worker for parallel first-touch memset. */
+struct load_arg {
+    char *base;
+    size_t sz;
+};
+
+static void *load_worker(void *arg) {
+    struct load_arg *la = (struct load_arg *)arg;
+    if (la->sz > 0)
+        memset(la->base, 1, la->sz);
+    return NULL;
+}
 
 // void* pthread_alloc(void* arg) {
 //     unsigned long end_addr, block, thd_id;
@@ -437,8 +549,6 @@ void init_memory_regions(struct access_config* config) {
     size_t i;
 
     unsigned long c = 0;
-    void* ret;
-    pthread_t thid;
     for (i = 0; i < config->nr_regions; i++) {
         region = &config->regions[i];
         // region->data = (char *)overload_malloc(region->sz);
@@ -478,21 +588,28 @@ void init_memory_regions(struct access_config* config) {
         region_addr = (unsigned long)region->data;
         region_size = (unsigned long)region->sz;
 
-        // for (c = 0; c < NR_CPU; c++) {
-        //     sleep(0.1);
-        //     if (pthread_create(&thid, NULL, pthread_alloc, (void*)c) != 0) {
-        //         perror("pthread_create() error");
-        //         exit(1);
-        //     }
-        // }
-
-        // if (pthread_join(thid, &ret) != 0) {
-        //     perror("pthread_create() error");
-        //     exit(3);
-        // }
-
-         memset(region->data, 1, region->sz);
-    //     // fprintf(stderr, "Region %lu address is %p : %p\n", i, (void*)region->data, (void*)region->data + region->sz);
+        /* Parallel first-touch memset across g_nr_threads workers. */
+        int nt = g_nr_threads > 0 ? g_nr_threads : 1;
+        pthread_t *tids = (pthread_t *)overload_malloc(sizeof(pthread_t) * nt);
+        struct load_arg *largs = (struct load_arg *)overload_malloc(
+            sizeof(struct load_arg) * nt);
+        /* Page-aligned chunk per thread. */
+        size_t per = region->sz / nt;
+        per = (per / SZ_PAGE) * SZ_PAGE;
+        for (c = 0; c < (unsigned long)nt; c++) {
+            largs[c].base = region->data + c * per;
+            largs[c].sz = (c == (unsigned long)nt - 1)
+                ? (region->sz - c * per)
+                : per;
+            if (pthread_create(&tids[c], NULL, load_worker, &largs[c]) != 0) {
+                perror("pthread_create(load_worker)");
+                exit(1);
+            }
+        }
+        for (c = 0; c < (unsigned long)nt; c++)
+            pthread_join(tids[c], NULL);
+        free(largs);
+        free(tids);
     }
 
     // // maintain minimum and maximum address of regions
@@ -799,9 +916,30 @@ void read_config(char* cfgpath, struct access_config* config_ptr) {
     content = rm_comments(cfgstr, sb.st_size);
     free(cfgstr);
 
+    /* Optional first paragraph: a single integer giving the thread count.
+     * If the first paragraph contains a comma we treat it as the regions
+     * paragraph (backward compatible) and default nr_threads = 1.
+     */
+    int nr_threads = 1;
     len_paragraph = paragraph_len(content, strlen(content));
     if (len_paragraph == -1)
         err(1, "Wrong file format");
+    int has_comma = 0;
+    for (int k = 0; k < len_paragraph; k++) {
+        if (content[k] == ',') { has_comma = 1; break; }
+    }
+    if (!has_comma) {
+        /* Treat first paragraph as nr_threads. */
+        char saved = content[len_paragraph];
+        content[len_paragraph] = '\0';
+        nr_threads = atoi(content);
+        if (nr_threads < 1) nr_threads = 1;
+        content[len_paragraph] = saved;
+        content += len_paragraph + 2; /* skip nr_threads paragraph + \n\n */
+        len_paragraph = paragraph_len(content, strlen(content));
+        if (len_paragraph == -1)
+            err(1, "Wrong file format (missing regions paragraph)");
+    }
     content[len_paragraph] = '\0';
     nr_regions = parse_regions(content, &mregions);
 
@@ -812,6 +950,9 @@ void read_config(char* cfgpath, struct access_config* config_ptr) {
     config_ptr->nr_regions = nr_regions;
     config_ptr->phases = phases;
     config_ptr->nr_phases = nr_phases;
+    config_ptr->nr_threads = nr_threads;
+    g_nr_threads = nr_threads;
+    fprintf(stderr, "Config: nr_threads=%d\n", nr_threads);
 }
 
 static struct argp_option options[] = {
