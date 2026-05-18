@@ -1,48 +1,57 @@
 #pragma once
 
-#include <string>
-#include <vector>
 #include <cstdint>
+#include <string>
+#include <sys/types.h>
+#include <vector>
 
 struct Config {
     // [tiers]
-    int hot_node = 0;
+    int hot_node  = 0;
     int cold_node = 1;
 
     // [sampling]
     std::vector<std::string> events = {
-        "cpu/event=0xd0,umask=0x81/ppu",
-        "cpu/event=0xd0,umask=0x82/ppu",
-        "cpu/event=0xd0,umask=0x11/ppu",
-        "cpu/event=0xd0,umask=0x12/ppu",
+        "mem_inst_retired.all_loads:P",
+        "mem_inst_retired.all_stores:P",
     };
-    int frequency = 10000;      // perf -c period (sample every N events)
+    int frequency      = 10000;     // perf -c period
     int window_seconds = 20;
 
     // [classification]
+    // Percentile (0..100) of per-region hotness. Regions whose hotness
+    // is *below* this percentile are demoted to the cold tier; regions
+    // at or above stay on the hot tier.
+    //
+    //   hot_percentile = 25  => demote bottom 25% (75% stays hot)
+    //   hot_percentile = 75  => demote bottom 75% (only top 25% hot)
     float hot_percentile = 25.0f;
 
     // [migration]
-    int threads = 2;
-    int max_pages_per_window = 5000000;
-    std::string region_size_str = "2M";
-    uint64_t region_size_bytes = 2 * 1024 * 1024;
+    int      threads              = 2;
+    uint64_t max_pages_per_window = 5'000'000;
+    std::string region_size_str   = "2M";
+    uint64_t    region_size_bytes = 2ULL * 1024 * 1024;
+    int      max_idle_windows     = 10;  // evict regions idle for this long
 
     // [daemon]
-    std::string pidfile = "/tmp/tierscaped.pid";
-    bool verbose = false;
+    std::string pidfile  = "/tmp/tierscaped.pid";
+    bool        verbose  = false;
     std::string log_file;
     std::string perf_bin = "/usr/bin/perf";
+    std::string dump_file;  // If non-empty, dump "time_ms addr" per sample
 
-    // runtime (not from config file)
-    pid_t target_pid = -1;
-    bool foreground = false;
-    bool dry_run = false;
+    // Runtime (not from config file)
+    pid_t                    target_pid = -1;
+    bool                     foreground = false;
+    bool                     dry_run    = false;
     std::vector<std::string> launch_cmd;
 };
 
 // Load config from TOML file. Returns 0 on success, -1 on error.
+// Unknown keys are warned but ignored.
 int config_load(Config& cfg, const std::string& path);
 
-// Parse region size string like "2M", "4K", "1G" into bytes.
+// Parse "2M", "4K", "1G", or plain bytes into a byte count.
+// Returns 0 on parse error.
 uint64_t parse_size(const std::string& s);

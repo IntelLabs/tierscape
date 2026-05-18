@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+add_compile_options(-Wall -Wextra -Wno-unused-parameter)
+
 add_executable(tierscaped
     main.cpp
     config.cpp
@@ -13,6 +15,7 @@ add_executable(tierscaped
     sampler.cpp
     classifier.cpp
     migrator.cpp
+    proc_maps.cpp
     util.cpp
 )
 

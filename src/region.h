@@ -1,45 +1,57 @@
 #pragma once
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
+#include <mutex>
+#include <unordered_map>
 #include <vector>
-#include <atomic>
 
+// Per-window snapshot of a region. The classifier and migrator
+// operate on instances of this struct.
 struct Region {
-    uint64_t start_addr;
-    uint64_t hotness;       // sample count in current window
-    int current_node;       // which NUMA node pages are currently on (-1 = unknown)
-    int target_node;        // where they should be after classification
+    uint64_t start_addr  = 0;
+    uint64_t hotness     = 0;   // sample count in current window
+    int      current_node = -1; // last-known NUMA node (-1 = unknown)
+    int      target_node  = -1; // classifier output for this window
 };
 
+// Persistent per-region metadata kept across windows.
+struct RegionState {
+    int current_node = -1;
+    int idle_windows = 0;       // consecutive windows with zero hotness
+};
+
+// Thread-safe region accounting.
+//
+//   Sampler thread:  add_sample(addr)               (called ~millions/s)
+//   Window thread:   snapshot_and_swap()            (once per window)
+//                    update_current_node(addr, n)   (post-migration)
+//                    evict_idle(max_idle_windows)   (end of window)
+//
+// The bucket holds samples for the current window. snapshot_and_swap
+// drains it under a brief lock, merges into persistent state, and
+// returns a copy of regions with hotness > 0 this window.
 class RegionManager {
 public:
-    RegionManager(uint64_t region_size_bytes);
+    explicit RegionManager(uint64_t region_size_bytes);
 
-    // Add a sample address. Returns region index.
-    size_t add_sample(uint64_t addr);
+    void add_sample(uint64_t addr);
 
-    // Reset hotness for all regions (start of new window)
-    void reset_hotness();
+    std::vector<Region> snapshot_and_swap();
 
-    // Get all regions with at least one sample
-    std::vector<Region>& regions() { return m_regions; }
-    const std::vector<Region>& regions() const { return m_regions; }
+    void update_current_node(uint64_t start_addr, int node);
 
-    size_t region_count() const { return m_regions.size(); }
+    size_t evict_idle(int max_idle_windows);
+
     uint64_t region_size() const { return m_region_size; }
+    size_t   tracked_count() const;
 
 private:
-    uint64_t m_region_size;
-    std::vector<Region> m_regions;
+    const uint64_t m_region_size;
 
-    // Map from region base address to index in m_regions
-    // Using a sorted vector for cache efficiency
-    struct AddrIndex {
-        uint64_t base_addr;
-        size_t index;
-    };
-    std::vector<AddrIndex> m_index;
+    mutable std::mutex m_bucket_mu;
+    std::unordered_map<uint64_t, uint64_t> m_bucket;  // addr -> hotness
 
-    size_t find_or_create(uint64_t base_addr);
+    // Persistent state. Only the window thread touches this.
+    std::unordered_map<uint64_t, RegionState> m_state;
 };

@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <numeric>
 
 void classify_regions(std::vector<Region>& regions,
                       float hot_percentile,
@@ -11,52 +10,40 @@ void classify_regions(std::vector<Region>& regions,
                       int cold_node) {
     if (regions.empty()) return;
 
-    // Collect hotness values from regions that have at least 1 sample
-    std::vector<uint64_t> hotness_vals;
-    hotness_vals.reserve(regions.size());
+    std::vector<uint64_t> hot_vals;
+    hot_vals.reserve(regions.size());
     for (const auto& r : regions) {
-        if (r.hotness > 0) {
-            hotness_vals.push_back(r.hotness);
-        }
+        if (r.hotness > 0) hot_vals.push_back(r.hotness);
     }
 
-    if (hotness_vals.empty()) {
-        // No samples at all — keep everything where it is
-        for (auto& r : regions) {
-            r.target_node = r.current_node;
-        }
+    if (hot_vals.empty()) {
+        for (auto& r : regions) r.target_node = r.current_node;
         return;
     }
 
-    // Sort to compute percentile
-    std::sort(hotness_vals.begin(), hotness_vals.end());
+    std::sort(hot_vals.begin(), hot_vals.end());
 
-    // Compute the threshold at hot_percentile
-    // hot_percentile=25 means top 75% is hot (>= 25th percentile value)
-    float idx_f = (hot_percentile / 100.0f) * (float)(hotness_vals.size() - 1);
-    size_t idx = (size_t)std::floor(idx_f);
-    if (idx >= hotness_vals.size()) idx = hotness_vals.size() - 1;
+    // Clamp percentile and compute threshold index.
+    float pct = std::max(0.0f, std::min(100.0f, hot_percentile));
+    float idx_f = (pct / 100.0f) * static_cast<float>(hot_vals.size() - 1);
+    size_t idx = static_cast<size_t>(std::floor(idx_f));
+    if (idx >= hot_vals.size()) idx = hot_vals.size() - 1;
 
-    uint64_t threshold = hotness_vals[idx];
+    const uint64_t threshold = hot_vals[idx];
 
-    log_verbose("Classification: %zu regions with samples, threshold=%lu "
+    log_verbose("Classify: %zu sampled regions, threshold=%lu "
                 "(percentile=%.1f, idx=%zu/%zu)",
-                hotness_vals.size(), threshold,
-                hot_percentile, idx, hotness_vals.size());
+                hot_vals.size(), threshold, pct, idx, hot_vals.size());
 
-    // Classify each region
-    // Regions with hotness >= threshold → hot (keep on hot node)
-    // Regions with hotness < threshold OR 0 samples → cold (demote)
     size_t hot_count = 0, cold_count = 0;
     for (auto& r : regions) {
         if (r.hotness >= threshold && threshold > 0) {
             r.target_node = hot_node;
-            hot_count++;
+            ++hot_count;
         } else {
             r.target_node = cold_node;
-            cold_count++;
+            ++cold_count;
         }
     }
-
-    log_verbose("Classification result: %zu hot, %zu cold", hot_count, cold_count);
+    log_verbose("Classify result: %zu hot, %zu cold", hot_count, cold_count);
 }
