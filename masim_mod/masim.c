@@ -6,7 +6,6 @@
 
 //#define OPS_MODE
 #define AUTO_MODE
-//#define PIN_MODE
 
 #define LEN_ARRAY(x) (sizeof(x) / sizeof(*x))
 
@@ -380,9 +379,20 @@ static void *phase_worker(void *arg) {
     gettimeofday(&ts, NULL);
 
 #ifdef OPS_MODE
+    /* In OPS_MODE keep the original semantics: each loop processes
+     * total_pages ops, and we run worker_loops loops. */
+    int batch = w->total_pages;
     uint32_t total_loops = w->worker_loops;
     while (total_loops-- > 0)
 #else
+    /* In TIME_MODE we must honor phase->time_ms. The time check only
+     * happens between do_access() calls, so the batch must be small
+     * enough that one call cannot overrun the phase budget for huge
+     * regions (e.g. 50 GB). Cap at TIME_MODE_BATCH_PAGES. */
+    #define TIME_MODE_BATCH_PAGES 1024
+    int batch = w->total_pages;
+    if (batch > TIME_MODE_BATCH_PAGES)
+        batch = TIME_MODE_BATCH_PAGES;
     while (1)
 #endif
     {
@@ -394,7 +404,7 @@ static void *phase_worker(void *arg) {
             prob_start = pattern->prob_start;
             prob_end = prob_start + pattern->probability;
             if (randn >= prob_start && randn < prob_end)
-                local_ops += do_access(pattern, w->total_pages);
+                local_ops += do_access(pattern, batch);
         }
 #ifndef OPS_MODE
         if (aclk_clock() - w->start_tsc > w->cpu_cycle_ms * phase->time_ms)
@@ -1132,11 +1142,6 @@ int main(int argc, char* argv[]) {
 #else
     fprintf(stderr, "AUTO_MODE is not defined. After the allocation the program will wait for SIGTSTP signal.\n");
 #endif
-#ifdef PIN_MODE
-    fprintf(stderr, "PIN_MODE is defined. Ensure it is running within PIN.\n");
-#else
-    fprintf(stderr, "PIN_MODE is not defined\n");
-#endif
 #ifdef OPS_MODE
     fprintf(stderr, "OPS_MODE is defined. \n");
 #else
@@ -1167,11 +1172,6 @@ int main(int argc, char* argv[]) {
 
 
 
-#ifdef PIN_MODE
-    if (skip_asm == 0) {
-        asm volatile ("int $100");
-    }
-#else
 #ifndef AUTO_MODE
     sigset_t signal_set;
     int sig_number;
@@ -1179,7 +1179,6 @@ int main(int argc, char* argv[]) {
     if (sigaddset(&signal_set, SIGTSTP) == -1)
         exit(1);
     sigwait(&signal_set, &sig_number);
-#endif
 #endif
 
 int nr_iters=1;
