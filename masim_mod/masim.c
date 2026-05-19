@@ -128,14 +128,29 @@ static int rndint(void) {
     return rndints[rndarr][rndofs++];
 }
 
+/* Resolve the [base, size) window this access is confined to. When the
+ * pattern has no slice configured (slice_size == 0), use the full region. */
+#define ACCESS_WINDOW(access, base_var, size_var) \
+    do { \
+        if ((access)->slice_size) { \
+            (base_var) = (access)->slice_base; \
+            (size_var) = (access)->slice_size; \
+        } else { \
+            (base_var) = 0; \
+            (size_var) = (access)->mregion->sz; \
+        } \
+    } while (0)
+
 static void do_rnd_ro(struct access* access, int batch) {
     struct mregion* region = access->mregion;
     char* rr = region->data;
+    size_t base, size;
     int i;
     char __attribute__((unused)) read_val;
 
+    ACCESS_WINDOW(access, base, size);
     for (i = 0; i < batch; i++)
-        read_val = ACCESS_ONCE(rr[rndint() % region->sz]);
+        read_val = ACCESS_ONCE(rr[base + rndint() % size]);
 }
 
 // macro page_align
@@ -143,95 +158,47 @@ static void do_rnd_ro(struct access* access, int batch) {
 #define PAGE_ALIGN(value) ((value) & ~((1 << 12) - 1))
 
 
-static void do_seq_ro(struct access* access, int nr_pages) {
+static void do_seq_ro(struct access* access, int batch) {
     struct mregion* region = access->mregion;
     char* rr = region->data;
-    // int i;
-    size_t offset = 0;
-    // uint64_t local_tmp = 0;
-    char __attribute__((unused)) read_val;
-
-    int accessed_pages = 0;
-    uint64_t last_page = 0;
-
-    // for (i = 0; i < nr_pages; i++) 
-    while (accessed_pages < nr_pages) {
-        {
-            offset += access->stride;
-            if (offset >= region->sz) {
-                // fprintf(stderr, "offset: %ld, region size: %ld\n", offset, region->sz);
-                offset = 0;
-            }
-            read_val = ACCESS_ONCE(rr[offset]);
-
-            if (last_page != PAGE_ALIGN(offset)) {
-                last_page = PAGE_ALIGN(offset);
-                // local_tmp++;
-                accessed_pages++;
-
-                // // print every 1000 accessed_page
-                // if (accessed_pages % 9999 == 0) {
-                //     fprintf(stderr, "Accessed page: %ld offset %ld page aligned address: %p\n", accessed_pages, offset, PAGE_ALIGN(offset));
-                // }
-            }
-        }
-    }
-}
-
-
-
-/* static void do_seq_ro(struct access* access, int batch) {
-    struct mregion* region = access->mregion;
-    char* rr = region->data;
+    size_t base, size;
     size_t offset = access->last_offset;
-    uint64_t last_page = access->last_page;
     int i;
     char __attribute__((unused)) read_val;
-    uint64_t local_tmp = 0;
 
+    ACCESS_WINDOW(access, base, size);
     for (i = 0; i < batch; i++) {
         offset += access->stride;
-        if (offset >= region->sz) {
-            // fprintf(stderr, "offset: %ld, region size: %ld\n", offset, region->sz);
+        if (offset >= size)
             offset = 0;
-        }
-        else {
-            if (last_page != PAGE_ALIGN(offset)) {
-                // fprintf(stderr, "page: %p cnt: %ld offset: %p last_offset %p\n", (void*)last_page, local_tmp, offset, offset-access->stride);
-                last_page = PAGE_ALIGN(offset);
-                local_tmp++;
-            }
-
-        }
-        read_val = ACCESS_ONCE(rr[offset]);
-        // char* page_selected = rr + offset;
-        // read_val = ACCESS_ONCE(page_selected[rndint() % SZ_PAGE]);
+        read_val = ACCESS_ONCE(rr[base + offset]);
     }
-    // fprintf(stderr,"local_tmp is %ld\n", local_tmp);
     access->last_offset = offset;
-    access->last_page = PAGE_ALIGN(last_page);
 }
- */
 static void do_rnd_wo(struct access* access, int batch) {
     struct mregion* region = access->mregion;
     char* rr = region->data;
+    size_t base, size;
     int i;
 
+    ACCESS_WINDOW(access, base, size);
     for (i = 0; i < batch; i++)
-        ACCESS_ONCE(rr[rndint() % region->sz]) = 1;
+        ACCESS_ONCE(rr[base + rndint() % size]) = 1;
 }
 
 static void do_seq_wo(struct access* access, int batch) {
     struct mregion* region = access->mregion;
     char* rr = region->data;
+    size_t base, size;
     size_t offset = access->last_offset;
     int i;
 
+    ACCESS_WINDOW(access, base, size);
     for (i = 0; i < batch; i++) {
         offset += access->stride;
-        if (offset >= region->sz)
+        if (offset >= size)
             offset = 0;
-        ACCESS_ONCE(rr[offset]) = 1;
+        ACCESS_ONCE(rr[base + offset]) = 1;
     }
     access->last_offset = offset;
 }
@@ -239,13 +206,15 @@ static void do_seq_wo(struct access* access, int batch) {
 static void do_rnd_rw(struct access* access, int batch) {
     struct mregion* region = access->mregion;
     char* rr = region->data;
+    size_t base, size;
     int i;
     char read_val;
 
+    ACCESS_WINDOW(access, base, size);
     for (i = 0; i < batch; i++) {
         size_t rndoffset;
 
-        rndoffset = rndint() % region->sz;
+        rndoffset = base + rndint() % size;
         read_val = ACCESS_ONCE(rr[rndoffset]);
         ACCESS_ONCE(rr[rndoffset]) = read_val + 1;
     }
@@ -254,16 +223,18 @@ static void do_rnd_rw(struct access* access, int batch) {
 static void do_seq_rw(struct access* access, int batch) {
     struct mregion* region = access->mregion;
     char* rr = region->data;
+    size_t base, size;
     size_t offset = access->last_offset;
     int i;
     char read_val;
 
+    ACCESS_WINDOW(access, base, size);
     for (i = 0; i < batch; i++) {
         offset += access->stride;
-        if (offset >= region->sz)
+        if (offset >= size)
             offset = 0;
-        read_val = ACCESS_ONCE(rr[offset]);
-        ACCESS_ONCE(rr[offset]) = read_val + 1;
+        read_val = ACCESS_ONCE(rr[base + offset]);
+        ACCESS_ONCE(rr[base + offset]) = read_val + 1;
     }
     access->last_offset = offset;
 }
@@ -460,6 +431,39 @@ void exec_phase(struct phase* phase) {
             wargs[t].patterns[i] = phase->patterns[i];
             wargs[t].patterns[i].last_offset = 0;
             wargs[t].patterns[i].last_page = 0;
+            /* Carve out this thread's page-aligned slice of the
+             * pattern's region: thread t owns pages
+             * [t * pages/N, (t+1) * pages/N), with the last thread
+             * taking any remainder so the whole region is covered.
+             * If the region is too small to give each thread at least
+             * one page, fall back to the full region (slice_size = 0). */
+            {
+                size_t region_pages =
+                    phase->patterns[i].mregion->sz / SZ_PAGE;
+                size_t per = region_pages / nr_threads;
+                if (per == 0) {
+                    wargs[t].patterns[i].slice_base = 0;
+                    wargs[t].patterns[i].slice_size = 0;
+                } else {
+                    size_t base_pg = (size_t)t * per;
+                    size_t end_pg = (t == nr_threads - 1)
+                        ? region_pages
+                        : (size_t)(t + 1) * per;
+                    wargs[t].patterns[i].slice_base =
+                        base_pg * SZ_PAGE;
+                    wargs[t].patterns[i].slice_size =
+                        (end_pg - base_pg) * SZ_PAGE;
+                }
+                fprintf(stderr,
+                    "THREAD %d phase=%s pattern=%d region=%s "
+                    "slice=[0x%zx +%zu bytes]\n",
+                    t, phase->name, i,
+                    phase->patterns[i].mregion->name,
+                    wargs[t].patterns[i].slice_base,
+                    wargs[t].patterns[i].slice_size
+                        ? wargs[t].patterns[i].slice_size
+                        : phase->patterns[i].mregion->sz);
+            }
         }
 #ifdef OPS_MODE
         /* split total_loops across threads; remainder goes to tid 0 */
@@ -852,6 +856,8 @@ int parse_phase(char* lines[], int nr_lines, struct phase* p,
         a->prob_start = p->total_probability;
         a->last_offset = 0;
         a->last_page = 0;
+        a->slice_base = 0;
+        a->slice_size = 0;
         lines++;
         astr_free_str_array(fields, nr_fields);
         p->total_probability += a->probability;

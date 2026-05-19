@@ -43,6 +43,13 @@ struct access {
 	int prob_start;
 	size_t last_offset;
 	uint64_t last_page;
+	/* Per-thread slice of mregion that this access is confined to.
+	 * slice_size == 0 means "use the whole region" (backward compatible).
+	 * Otherwise valid bytes are [slice_base, slice_base + slice_size).
+	 * slice_base and slice_size are guaranteed page-aligned when set
+	 * by the slicing setup in phase_worker(). */
+	size_t slice_base;
+	size_t slice_size;
 };
 
 struct phase {

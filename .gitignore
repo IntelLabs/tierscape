@@ -4,3 +4,4 @@ src/build/
 masim_mod/masim
 masim_mod/eval/
 masim_mod/plotting/__pycache__/acm_style.cpython-312.pyc
+local_mlc.txt
