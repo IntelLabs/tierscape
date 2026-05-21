@@ -10,34 +10,45 @@ void classify_regions(std::vector<Region>& regions,
                       int cold_node) {
     if (regions.empty()) return;
 
-    std::vector<uint64_t> hot_vals;
-    hot_vals.reserve(regions.size());
+    // Build the hotness vector over ALL tracked regions (including silent
+    // ones with hotness=0). This sizes the hot-tier "budget" against the
+    // full footprint, so the top (100-pct)% of the address space lands hot
+    // — not just the top fraction of whatever happened to be sampled this
+    // window. Silent regions are always demotion candidates because their
+    // hotness is below any positive threshold.
+    std::vector<uint64_t> vals;
+    vals.reserve(regions.size());
+    size_t nonzero = 0;
     for (const auto& r : regions) {
-        if (r.hotness > 0) hot_vals.push_back(r.hotness);
+        vals.push_back(r.hotness);
+        if (r.hotness > 0) ++nonzero;
     }
 
-    if (hot_vals.empty()) {
+    if (nonzero == 0) {
+        // No accesses observed anywhere → leave placement unchanged.
         for (auto& r : regions) r.target_node = r.current_node;
         return;
     }
 
-    std::sort(hot_vals.begin(), hot_vals.end());
-
-    // Clamp percentile and compute threshold index.
+    // Compute the percentile-indexed element via nth_element (avg O(n))
+    // rather than sorting the whole vector (O(n log n)).
     float pct = std::max(0.0f, std::min(100.0f, hot_percentile));
-    float idx_f = (pct / 100.0f) * static_cast<float>(hot_vals.size() - 1);
+    float idx_f = (pct / 100.0f) * static_cast<float>(vals.size() - 1);
     size_t idx = static_cast<size_t>(std::floor(idx_f));
-    if (idx >= hot_vals.size()) idx = hot_vals.size() - 1;
+    if (idx >= vals.size()) idx = vals.size() - 1;
 
-    const uint64_t threshold = hot_vals[idx];
+    std::nth_element(vals.begin(), vals.begin() + idx, vals.end());
+    // Floor threshold at 1 so a percentile that lands on a zero (active
+    // set smaller than the hot budget) still promotes every accessed region.
+    const uint64_t threshold = std::max<uint64_t>(vals[idx], 1);
 
-    log_verbose("Classify: %zu sampled regions, threshold=%lu "
-                "(percentile=%.1f, idx=%zu/%zu)",
-                hot_vals.size(), threshold, pct, idx, hot_vals.size());
+    log_verbose("Classify: %zu of %zu regions had samples, threshold=%lu "
+                "(percentile=%.1f, idx=%zu/%zu, over full tracked set)",
+                nonzero, regions.size(), threshold, pct, idx, vals.size());
 
     size_t hot_count = 0, cold_count = 0;
     for (auto& r : regions) {
-        if (r.hotness >= threshold && threshold > 0) {
+        if (r.hotness >= threshold) {
             r.target_node = hot_node;
             ++hot_count;
         } else {
@@ -45,5 +56,6 @@ void classify_regions(std::vector<Region>& regions,
             ++cold_count;
         }
     }
-    log_verbose("Classify result: %zu hot, %zu cold", hot_count, cold_count);
+    log_verbose("Classify result: %zu hot, %zu cold (of %zu tracked)",
+                hot_count, cold_count, regions.size());
 }

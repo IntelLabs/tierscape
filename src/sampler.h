@@ -8,7 +8,10 @@
 #include <functional>
 #include <sys/types.h>
 
-using SampleCallback = std::function<void(uint64_t addr)>;
+// Callback invoked for every parsed sample.
+//   time_ns: perf-reported timestamp (CLOCK_MONOTONIC ns) or 0 if absent.
+//   addr:    page-aligned virtual address.
+using SampleCallback = std::function<void(uint64_t time_ns, uint64_t addr)>;
 
 // Spawns a `perf record -d ... | perf script` pipeline as a child
 // process group, then streams parsed addresses to the callback until

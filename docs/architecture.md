@@ -51,9 +51,15 @@ atomically — no orphans.
 ```
 loop forever:
     sleep(window_seconds)
-    snap = region_mgr.snapshot_and_swap()      # drain sample bucket
+    snap = region_mgr.snapshot_and_swap()      # drain sample bucket;
+                                               # snap holds ALL tracked
+                                               # regions (silent ones with
+                                               # hotness=0)
     if snap empty: continue
 
+    # Percentile is computed over the full tracked footprint, so the
+    # hot tier is sized against the working set — not just the regions
+    # that happened to fire samples this window.
     classify_regions(snap, hot_pct, hot_node, cold_node)
 
     vmas = read_proc_maps(target_pid)          # fresh VMA list
@@ -69,7 +75,9 @@ loop forever:
 
 | File | Responsibility |
 |------|---------------|
-| [src/main.cpp](../src/main.cpp) | CLI, signals, daemonization, window loop |
+| [src/main.cpp](../src/main.cpp) | Thin top-level orchestrator (~50 lines) |
+| [src/cli.cpp](../src/cli.cpp) | `argv` parsing, usage, TOML-file discovery |
+| [src/runtime.cpp](../src/runtime.cpp) | Signals, daemonize, launch_target, window loop, startup & summary logging |
 | [src/config.cpp](../src/config.cpp) | TOML loader with unknown-key warnings |
 | [src/sanity.cpp](../src/sanity.cpp) | NUMA, perf, PMU, process-access checks |
 | [src/sampler.cpp](../src/sampler.cpp) | PEBS pipeline via `fork+setsid`, line parser |

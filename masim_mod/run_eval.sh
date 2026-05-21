@@ -18,12 +18,20 @@ echo "Exp dir: $EXP_DIR" | tee -a "$SUMMARY"
 date | tee -a "$SUMMARY"
 echo "" | tee -a "$SUMMARY"
 
-echo "[1/4] Starting masim on node 0 (4 GB stairs, 100s)..." | tee -a "$SUMMARY"
-numactl --membind=0 "$ROOT/masim_mod/masim" "$ROOT/masim_mod/configs/stairs_4gb_100s" \
+MASIM_CFG="${MASIM_CFG:-stairs_4gb_100s}"
+MASIM_CFG_PATH="$ROOT/masim_mod/configs/$MASIM_CFG"
+if [[ ! -f "$MASIM_CFG_PATH" ]]; then
+    echo "ERROR: masim config not found: $MASIM_CFG_PATH" | tee -a "$SUMMARY"
+    exit 1
+fi
+echo "[1/4] Starting masim on node 0 (config=$MASIM_CFG)..." | tee -a "$SUMMARY"
+numactl --membind=0 "$ROOT/masim_mod/masim" "$MASIM_CFG_PATH" \
     >"$MASIM_LOG" 2>&1 &
 MASIM_PID=$!
 echo "masim PID: $MASIM_PID" | tee -a "$SUMMARY"
-sleep 4
+# Larger working sets take longer to allocate + touch. Override with
+# MASIM_INIT_SLEEP=<seconds> for very large configs.
+sleep "${MASIM_INIT_SLEEP:-4}"
 
 if ! kill -0 $MASIM_PID 2>/dev/null; then
     echo "ERROR: masim died early. log:" | tee -a "$SUMMARY"
@@ -43,6 +51,7 @@ numastat -p $MASIM_PID >> "$NUMA_LOG" 2>&1
 # Copy config for reproducibility
 TOML_CFG="$ROOT/src/test_config.toml"
 cp "$TOML_CFG" "$EXP_DIR/config.toml"
+cp "$MASIM_CFG_PATH" "$EXP_DIR/masim_config" 2>/dev/null || true
 
 echo "" | tee -a "$SUMMARY"
 echo "[3/4] Launching tierscaped (window=10s, hot_pct=75 -> demote 75%)..." | tee -a "$SUMMARY"
@@ -80,6 +89,10 @@ kill -KILL $TS_PID 2>/dev/null
 kill -KILL $MASIM_PID 2>/dev/null
 
 echo "" | tee -a "$SUMMARY"
+echo "=== Tierscaped startup config ===" | tee -a "$SUMMARY"
+sed -n '/=== Effective configuration ===/,/================================/p' "$TS_LOG" | tee -a "$SUMMARY"
+
+echo "" | tee -a "$SUMMARY"
 echo "=== Tierscaped log tail ===" | tee -a "$SUMMARY"
 tail -30 "$TS_LOG" | tee -a "$SUMMARY"
 
@@ -88,4 +101,29 @@ echo "Artifacts saved in $EXP_DIR:" | tee -a "$SUMMARY"
 ls -la "$EXP_DIR"/ | tee -a "$SUMMARY"
 
 echo "" | tee -a "$SUMMARY"
-echo "Done. Plot with: python3 masim_mod/plotting/plot_migration.py --eval-dir $EXP_DIR"
+echo "[plot] Generating PNGs..." | tee -a "$SUMMARY"
+PLOT_DIR="$ROOT/masim_mod/plotting"
+PLOT_LOG="$EXP_DIR/plot.log"
+: > "$PLOT_LOG"
+PLOT_OK=1
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "  python3 not found; skipping plots" | tee -a "$SUMMARY"
+    PLOT_OK=0
+fi
+if [[ $PLOT_OK -eq 1 ]]; then
+    for script in plot_migration.py plot_migration_rate.py; do
+        if [[ -f "$PLOT_DIR/$script" ]]; then
+            echo "  - $script" | tee -a "$SUMMARY"
+            if ! python3 "$PLOT_DIR/$script" --eval-dir "$EXP_DIR" \
+                 >>"$PLOT_LOG" 2>&1; then
+                echo "    FAILED (see $PLOT_LOG)" | tee -a "$SUMMARY"
+            fi
+        fi
+    done
+    echo "  PNGs:" | tee -a "$SUMMARY"
+    ls -1 "$EXP_DIR"/*.png 2>/dev/null | sed 's/^/    /' | tee -a "$SUMMARY" \
+        || echo "    (none generated)" | tee -a "$SUMMARY"
+fi
+
+echo "" | tee -a "$SUMMARY"
+echo "Done. Re-plot manually with: python3 masim_mod/plotting/plot_migration.py --eval-dir $EXP_DIR"

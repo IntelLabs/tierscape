@@ -62,7 +62,7 @@ events = [
     "mem_inst_retired.stlb_miss_stores:P",
 ]
 frequency = 10000       # sample period (perf -c flag)
-window_seconds = 20     # profiling window duration
+window_seconds = 20     # profiling window duration (test driver uses 10 for faster feedback)
 
 [classification]
 hot_percentile = 25.0   # regions >= this percentile stay on hot node

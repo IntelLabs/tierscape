@@ -53,18 +53,20 @@ std::vector<Vma> read_proc_maps(pid_t pid) {
     return vmas;
 }
 
-bool clip_to_migratable_vma(const std::vector<Vma>& vmas,
-                            uint64_t start, uint64_t end,
-                            uint64_t& out_start, uint64_t& out_end) {
-    // Binary search for first vma whose end > start
+std::vector<std::pair<uint64_t, uint64_t>>
+clip_to_migratable_vmas(const std::vector<Vma>& vmas,
+                        uint64_t start, uint64_t end) {
+    std::vector<std::pair<uint64_t, uint64_t>> out;
+    if (start >= end) return out;
+
     auto it = std::lower_bound(vmas.begin(), vmas.end(), start,
         [](const Vma& v, uint64_t s) { return v.end <= s; });
 
-    if (it == vmas.end()) return false;
-    if (it->start >= end) return false;
-    if (!it->is_anon || !it->writable) return false;
-
-    out_start = std::max(start, it->start);
-    out_end   = std::min(end,   it->end);
-    return out_end > out_start;
+    for (; it != vmas.end() && it->start < end; ++it) {
+        if (!it->is_anon || !it->writable) continue;
+        uint64_t s = std::max(start, it->start);
+        uint64_t e = std::min(end,   it->end);
+        if (e > s) out.emplace_back(s, e);
+    }
+    return out;
 }

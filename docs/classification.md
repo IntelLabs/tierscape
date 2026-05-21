@@ -13,18 +13,22 @@ void classify_regions(std::vector<Region>& regions,
                       int cold_node);
 ```
 
-1. Collect `hotness > 0` values from the snapshot into a vector.
+1. Collect hotness values from **all tracked** regions (including
+   silent ones with `hotness = 0`) into a vector. Silent regions are
+   included so the percentile is computed over the full tracked
+   footprint, not just the ones that happened to fire samples this
+   window.
 2. `std::sort` ascending.
 3. Compute threshold index:
    ```
-   idx = floor((hot_percentile / 100.0) * (N - 1))
-   threshold = sorted[idx]
+   idx       = floor((hot_percentile / 100.0) * (N - 1))
+   threshold = max(sorted[idx], 1)   // floored at 1
    ```
+   The floor at 1 ensures any region that received samples is
+   promotable when the hot budget exceeds the active set size.
 4. For every region in the snapshot:
-   * if `hotness >= threshold && threshold > 0`:
-     `target_node = hot_node`
-   * else:
-     `target_node = cold_node`
+   * if `hotness >= threshold`: `target_node = hot_node`
+   * else: `target_node = cold_node`
 
 ## Semantics of `hot_percentile`
 
@@ -66,19 +70,25 @@ hot/cold split slightly different from the requested percentile,
 especially with low sample counts. With ~100 + samples per region
 this drift is negligible.
 
-## Regions absent from this window
+## Silent regions (no samples this window)
 
 A region in `m_state` that didn't receive any samples this window
-does **not** appear in the snapshot. The classifier never sees it,
-and the migrator never touches it. Its persistent `current_node`
-stays as last-known, and its `idle_windows` counter is incremented
-(see [region-management.md](region-management.md)).
+**still appears in the snapshot, with `hotness = 0`**. The
+classifier evaluates it like any other region: with `hotness = 0`
+it always lands at or below the percentile threshold and gets
+classified as cold (`target_node = cold_node`).
 
-This means a region demoted in window N stays on the cold tier
-unless it shows up in window N+1 hot enough to clear the
-threshold — i.e., the daemon does not periodically re-test cold
-regions. That is intentional: cold regions are silent, so they
-should stay where they are with no PEBS overhead.
+This is intentional. It means:
+
+* The percentile is computed against the **full tracked footprint**,
+  so a small spike of activity in one region doesn't make the rest
+  of the working set look hot just because they're now silent.
+* Regions that were once promoted but have since gone quiet are
+  re-classified as cold and will be demoted on the next window,
+  freeing the hot tier.
+* The `idle_windows` counter is still incremented for silent
+  regions; after `max_idle_windows` they are evicted from `m_state`
+  entirely (see [region-management.md](region-management.md)).
 
 ## Known limitations
 

@@ -12,12 +12,14 @@ What it does:
 
 1. Creates `masim_mod/eval/` (gitignored).
 2. Launches `masim` bound to NUMA node 0 with config
-   [test_tier_4gb_long](../masim_mod/configs/test_tier_4gb_long)
-   — 4 × 1 GiB regions, 60 s per phase.
+   [stairs_4gb_100s](../masim_mod/configs/stairs_4gb_100s)
+   — 4 × 1 GiB regions, 25 s per phase (overridable via
+   `MASIM_CFG=<name>`; e.g. `MASIM_CFG=stairs_40gb_100s`).
 3. Captures pre-tierscaped `numastat`.
-4. Starts `tierscaped` in foreground/verbose with `--window 8
-   --hot-pct 75` (aggressive demotion).
-5. Snapshots `numastat -p <PID>` every 10 s for 90 s.
+4. Starts `tierscaped` in foreground/verbose with
+   `--window 10 --hot-pct 75` (aggressive demotion, 10 s windows
+   for faster feedback than the 20 s default).
+5. Snapshots `numastat -p <PID>` every 10 s for the full run.
 6. Sends `SIGTERM` to both, captures the final numastat.
 
 ## Output files
@@ -69,10 +71,10 @@ the daemon migrated ~1.8 GiB across 11 windows.
 
 | File | Memory | Use |
 |------|--------|-----|
-| `test_tier_4gb_long` | 4 GiB, 4 × 60s phases | Standard validation (~4 min) |
-| `stairs_plot_1gb` | 4 GiB, fast phases | Smoke test (~20 s) |
-| `stairs_100GB_10GB` | ~90 GiB | Large-scale verification |
-| `stairs_1TB_100g` | ~900 GiB | Stress test |
+| `stairs_4gb_100s` | 4 GiB (4 × 1 GiB) | Default driver config; 4 × 25 s phases (~100 s) |
+| `stairs_4gb_20s_t1` | 4 GiB (4 × 1 GiB) | Fast smoke (4 × 5 s phases, single thread) |
+| `stairs_40gb_100s` | 40 GiB (4 × 10 GiB) | Larger-footprint validation |
+| `stairs_50gb_10s_t64` | 50 GiB | Multi-threaded stress (64 threads) |
 
 ## Manual tier verification
 

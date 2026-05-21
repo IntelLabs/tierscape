@@ -13,7 +13,9 @@ MigrateStats migrate_regions(std::vector<Region>& regions,
                              int num_threads,
                              uint64_t max_pages,
                              int time_limit_sec,
-                             const std::vector<Vma>& vmas);
+                             const std::vector<Vma>& vmas,
+                             int hot_node,
+                             int cold_node);
 ```
 
 Returns:
@@ -22,9 +24,13 @@ Returns:
 struct MigrateStats {
     uint64_t pages_moved;
     uint64_t regions_moved;
+    uint64_t pages_promoted;   // moved to hot_node
+    uint64_t pages_demoted;    // moved to cold_node
     uint64_t already_in_place;
     uint64_t errors;
     uint64_t skipped_no_vma;
+    int      hot_node;
+    int      cold_node;
 };
 ```
 
@@ -34,13 +40,15 @@ For each `Region` where `target_node != current_node`:
 
 1. **Budget check** — if `pages_moved >= max_pages` or
    elapsed `>= time_limit_sec`, stop.
-2. **VMA clip** — `clip_to_migratable_vma(vmas, r_start, r_end,
-   out_start, out_end)`:
-   * Binary-search `vmas` for the first VMA whose `end > r_start`.
-   * If no overlap, or the VMA isn't anonymous + writable, count in
-     `skipped_no_vma` and skip.
-   * Else clip `[r_start, r_end)` to that VMA's bounds. (Regions
-     spanning multiple VMAs only migrate the first segment for now.)
+2. **VMA clip** — `clip_to_migratable_vmas(vmas, r_start, r_end)`:
+   * Returns a `std::vector<std::pair<uint64_t,uint64_t>>` of every
+     `[seg_start, seg_end)` slice of `[r_start, r_end)` that lies
+     inside an anonymous, writable VMA.
+   * Empty vector means no overlap; the region is counted under
+     `skipped_no_vma` and skipped.
+   * Regions spanning multiple anon VMAs are migrated in pieces —
+     each returned segment becomes an independent `move_pages` call
+     in step 4.
 3. **Build arrays** for `move_pages`:
    ```cpp
    std::vector<void*> pages(N);

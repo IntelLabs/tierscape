@@ -1,0 +1,25 @@
+# Stairs pattern: 4 x 10GB regions, 4 phases x 25s each (100s total)
+# Same staircase as stairs_4gb_100s but 10x the per-region footprint
+# (40 GB total working set).
+s0, 10737418240
+s1, 10737418240
+s2, 10737418240
+s3, 10737418240
+
+#phases
+#region, random_access, stride, probability, mode
+phase 0
+25000
+s0, 0, 4096, 100, ro
+
+phase 1
+25000
+s1, 0, 4096, 100, ro
+
+phase 2
+25000
+s2, 0, 4096, 100, ro
+
+phase 3
+25000
+s3, 0, 4096, 100, ro

@@ -65,6 +65,7 @@ non-zero memory. They cannot be equal.
 | `-c, --config <path>` | TOML config path |
 | `-f, --foreground` | Don't daemonize. Stdio inherited |
 | `--dry-run` | Profile only, never call `move_pages` |
+| `--dump-file <path>` | Dump every parsed sample as `"time_ms addr"` (one per line, ms anchored to the first observed perf timestamp). Used by the plotting scripts |
 | `-h, --help` | Print usage and exit |
 
 ## Example TOML

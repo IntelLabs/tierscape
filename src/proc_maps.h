@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <sys/types.h>
+#include <utility>
 #include <vector>
 
 // A single virtual memory area (VMA) from /proc/<pid>/maps.
@@ -20,9 +21,9 @@ struct Vma {
 // Sorted by start address.
 std::vector<Vma> read_proc_maps(pid_t pid);
 
-// Return true if [start, end) is fully or partially inside any
-// migratable VMA (anonymous + writable). Out-params clip the range to
-// the first overlapping VMA's bounds.
-bool clip_to_migratable_vma(const std::vector<Vma>& vmas,
-                            uint64_t start, uint64_t end,
-                            uint64_t& out_start, uint64_t& out_end);
+// Return all migratable sub-ranges of [start, end) that lie inside an
+// anonymous, writable VMA. Each returned pair is [seg_start, seg_end).
+// Empty result means no overlap.
+std::vector<std::pair<uint64_t, uint64_t>>
+clip_to_migratable_vmas(const std::vector<Vma>& vmas,
+                        uint64_t start, uint64_t end);

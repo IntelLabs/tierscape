@@ -25,6 +25,10 @@ struct Config {
     //
     //   hot_percentile = 25  => demote bottom 25% (75% stays hot)
     //   hot_percentile = 75  => demote bottom 75% (only top 25% hot)
+    //
+    // Implementation note: the threshold is floored at 1 in
+    // classify_regions(), so any region with at least one sample is
+    // promoted when the hot budget exceeds the active set size.
     float hot_percentile = 25.0f;
 
     // [migration]
@@ -52,6 +56,11 @@ struct Config {
 // Unknown keys are warned but ignored.
 int config_load(Config& cfg, const std::string& path);
 
-// Parse "2M", "4K", "1G", or plain bytes into a byte count.
+// Parse "2M", "4K", "1G", "4KiB", or plain bytes into a byte count.
 // Returns 0 on parse error.
 uint64_t parse_size(const std::string& s);
+
+// Strict whitelist check for a perf event name. Returns true if `s`
+// contains only characters that are safe to interpolate into a perf
+// command line (alnum and "_.:/-@=,"). Used to prevent shell injection.
+bool is_valid_event_name(const std::string& s);

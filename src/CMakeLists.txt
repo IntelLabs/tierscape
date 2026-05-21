@@ -9,6 +9,7 @@ add_compile_options(-Wall -Wextra -Wno-unused-parameter)
 
 add_executable(tierscaped
     main.cpp
+    cli.cpp
     config.cpp
     sanity.cpp
     region.cpp
@@ -16,6 +17,7 @@ add_executable(tierscaped
     classifier.cpp
     migrator.cpp
     proc_maps.cpp
+    runtime.cpp
     util.cpp
 )
 

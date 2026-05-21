@@ -26,23 +26,24 @@ static void log_prefix(FILE* fp, const char* level) {
     std::fprintf(fp, "%s %s ", ts, level);
 }
 
-#define LOG_IMPL(level)                                  \
-    do {                                                 \
-        log_prefix(stderr, level);                       \
-        va_list args;                                    \
-        va_start(args, fmt);                             \
-        std::vfprintf(stderr, fmt, args);                \
-        va_end(args);                                    \
-        std::fputc('\n', stderr);                        \
-    } while (0)
+static void log_emit(const char* level, const char* fmt, va_list args) {
+    log_prefix(stderr, level);
+    std::vfprintf(stderr, fmt, args);
+    std::fputc('\n', stderr);
+}
 
-void log_info(const char* fmt, ...)    { LOG_IMPL("[INFO]"); }
-void log_warn(const char* fmt, ...)    { LOG_IMPL("[WARN]"); }
-void log_err(const char* fmt, ...)     { LOG_IMPL("[ERR ]"); }
-
+void log_info(const char* fmt, ...) {
+    va_list args; va_start(args, fmt); log_emit("[INFO]", fmt, args); va_end(args);
+}
+void log_warn(const char* fmt, ...) {
+    va_list args; va_start(args, fmt); log_emit("[WARN]", fmt, args); va_end(args);
+}
+void log_err(const char* fmt, ...) {
+    va_list args; va_start(args, fmt); log_emit("[ERR ]", fmt, args); va_end(args);
+}
 void log_verbose(const char* fmt, ...) {
     if (!g_verbose) return;
-    LOG_IMPL("[VERB]");
+    va_list args; va_start(args, fmt); log_emit("[VERB]", fmt, args); va_end(args);
 }
 
 bool is_process_running(pid_t pid) {

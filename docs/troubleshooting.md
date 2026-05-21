@@ -83,8 +83,12 @@ $ kill $(cat /tmp/tierscaped.pid)
 # no exit after several seconds
 ```
 
-* Daemon checks `g_running` and target liveness **every second**.
-  Up to 1 second latency to react.
+* Daemon checks `g_running` and target liveness **once per
+  second** during the inter-window sleep, so a graceful stop takes
+  up to 1 second when the daemon is sleeping. If the signal arrives
+  mid-window (i.e. during snapshot/classify/migrate) it is observed
+  only when control returns to the sleep loop — worst case up to
+  one full `window_seconds` for very large migrations.
 * If still stuck, the sampler thread may be blocked in `read()` on
   a hung perf process. `kill -9` the daemon PID, then
   `pkill perf` to clean up the pipeline.

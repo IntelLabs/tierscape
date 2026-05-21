@@ -76,6 +76,12 @@ frequency = 10000     # perf -c period
 window_seconds = 20
 ```
 
+> When `--dump-file` is set, every parsed sample is written as
+> `"time_ms addr"`. `time_ms` is anchored to the first observed
+> perf timestamp (atomic compare-exchange on the first sample), so
+> the dump's timeline aligns with the daemon's per-window log even
+> across the sampler/window thread boundary.
+
 ### Choosing events
 
 * `mem_inst_retired.all_loads:P` / `all_stores:P` — most universal;

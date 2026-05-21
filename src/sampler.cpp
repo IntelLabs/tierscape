@@ -11,6 +11,26 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+namespace {
+// Architecture-portable userspace upper bound. On x86_64 (4-level paging)
+// userspace ends at 0x0000_7fff_ffff_ffff. On 5-level paging or other
+// architectures the bound differs; we err on the permissive side and let
+// the migrator drop addresses outside any VMA later.
+constexpr uint64_t userspace_upper_bound() {
+#if defined(__x86_64__)
+    return 0x800000000000ULL;
+#elif defined(__aarch64__)
+    // 48-bit VA is the common AArch64 user limit.
+    return 0x1000000000000ULL;
+#else
+    // Fallback: accept anything below the canonical 63-bit boundary.
+    return 0x8000000000000000ULL;
+#endif
+}
+
+constexpr size_t kCarryMaxBytes = 1 << 20;  // 1 MiB safety cap.
+}  // namespace
+
 Sampler::Sampler(const Config& cfg, pid_t target_pid)
     : m_cfg(cfg), m_target_pid(target_pid) {}
 
@@ -29,22 +49,25 @@ bool Sampler::spawn() {
         return false;
     }
 
-    // Build shell command for the pipeline.
+    // Build shell command for the pipeline. Events are validated in
+    // config_load (is_valid_event_name) so this is safe to interpolate.
     std::string events_str;
     for (size_t i = 0; i < m_cfg.events.size(); ++i) {
         if (i) events_str += " ";
         events_str += "-e " + m_cfg.events[i];
     }
 
-    char cmd[4096];
-    std::snprintf(cmd, sizeof(cmd),
-        "exec %s record -d %s -c %d -p %d -o - 2>/dev/null | "
-        "exec %s script -i - --fields=time,addr 2>/dev/null",
-        m_cfg.perf_bin.c_str(), events_str.c_str(),
-        m_cfg.frequency, m_target_pid,
-        m_cfg.perf_bin.c_str());
+    std::string cmd;
+    cmd.reserve(events_str.size() + m_cfg.perf_bin.size() * 2 + 256);
+    cmd  = "exec ";   cmd += m_cfg.perf_bin;
+    cmd += " record -d ";    cmd += events_str;
+    cmd += " -c " + std::to_string(m_cfg.frequency);
+    cmd += " -p " + std::to_string(m_target_pid);
+    cmd += " -o - 2>/dev/null | exec ";
+    cmd += m_cfg.perf_bin;
+    cmd += " script -i - --fields=time,addr 2>/dev/null";
 
-    log_verbose("Sampler pipeline: %s", cmd);
+    log_verbose("Sampler pipeline: %s", cmd.c_str());
 
     pid_t pid = fork();
     if (pid < 0) {
@@ -64,7 +87,7 @@ bool Sampler::spawn() {
         ::close(pipefd[1]);
 
         // exec /bin/sh -c <cmd>
-        execl("/bin/sh", "sh", "-c", cmd, nullptr);
+        execl("/bin/sh", "sh", "-c", cmd.c_str(), nullptr);
         _exit(127);
     }
 
@@ -108,6 +131,39 @@ void Sampler::run(SampleCallback cb) {
     std::string carry;
     carry.reserve(256);
 
+    const uint64_t pgsz       = static_cast<uint64_t>(sysconf(_SC_PAGESIZE));
+    const uint64_t pg_mask    = ~(pgsz - 1);
+    const uint64_t user_upper = userspace_upper_bound();
+    bool carry_overflow_warned = false;
+
+    auto parse_one_line = [&](const char* line, const char* end) {
+        // perf script with --fields=time,addr emits:
+        //   "<time>: <addr>"
+        // Time may have a decimal point ("1234.567890"); we accept either.
+        char* eptr = nullptr;
+        double t_sec = std::strtod(line, &eptr);
+        uint64_t time_ns = 0;
+        const char* p = (eptr && eptr > line) ? eptr : line;
+        if (eptr && eptr > line && t_sec >= 0.0) {
+            time_ns = static_cast<uint64_t>(t_sec * 1e9);
+        }
+        const char* colon = static_cast<const char*>(memchr(p, ':', end - p));
+        if (!colon) return;
+        p = colon + 1;
+        while (p < end && (*p == ' ' || *p == '\t')) ++p;
+        if (p >= end) return;
+
+        eptr = nullptr;
+        uint64_t addr = std::strtoull(p, &eptr, 16);
+        if (eptr == p) return;
+
+        if (addr < 0x1000ULL || addr >= user_upper) return;
+        addr &= pg_mask;
+
+        m_samples_seen.fetch_add(1, std::memory_order_relaxed);
+        cb(time_ns, addr);
+    };
+
     while (!m_stop_requested.load(std::memory_order_relaxed)) {
         ssize_t n = read(m_pipe_fd, buf, BUF_SZ);
         if (n < 0) {
@@ -122,34 +178,29 @@ void Sampler::run(SampleCallback cb) {
         while (true) {
             size_t nl = carry.find('\n', start);
             if (nl == std::string::npos) break;
-
-            // Process line [start, nl)
-            const char* line = carry.data() + start;
-            const char* end  = carry.data() + nl;
+            parse_one_line(carry.data() + start, carry.data() + nl);
             start = nl + 1;
-
-            // Find ':' separator: "<time>: <addr>"
-            const char* colon = static_cast<const char*>(memchr(line, ':', end - line));
-            if (!colon) continue;
-            const char* p = colon + 1;
-            while (p < end && (*p == ' ' || *p == '\t')) ++p;
-            if (p >= end) continue;
-
-            char* eptr = nullptr;
-            uint64_t addr = std::strtoull(p, &eptr, 16);
-
-            if (addr < 0x1000ULL) continue;
-            // x86_64 userspace upper bound is 0x7fff_ffff_ffff; everything
-            // beyond is kernel.
-            if (addr >= 0x800000000000ULL) continue;
-
-            const uint64_t pgsz = static_cast<uint64_t>(sysconf(_SC_PAGESIZE));
-            addr &= ~(pgsz - 1);
-
-            m_samples_seen.fetch_add(1, std::memory_order_relaxed);
-            cb(addr);
         }
         carry.erase(0, start);
+
+        // Bound the carry so a malformed stream without newlines
+        // cannot grow it without limit.
+        if (carry.size() > kCarryMaxBytes) {
+            if (!carry_overflow_warned) {
+                log_warn("Sampler: discarding %zu bytes of malformed input "
+                         "(no newline within %zu bytes)",
+                         carry.size(), kCarryMaxBytes);
+                carry_overflow_warned = true;
+            }
+            carry.clear();
+        }
+    }
+
+    // Flush any final partial line on EOF (perf may not terminate the
+    // last record with '\n').
+    if (!carry.empty()) {
+        parse_one_line(carry.data(), carry.data() + carry.size());
+        carry.clear();
     }
 
     m_running = false;

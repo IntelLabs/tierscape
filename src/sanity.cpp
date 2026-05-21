@@ -62,10 +62,12 @@ int check_perf(const Config& cfg) {
 // Validate all PMU events in a single `perf stat` call.
 int check_pmu_events(const Config& cfg) {
     if (cfg.events.empty()) {
-        log_err("No PMU events configured");
+        log_err("No PMU events configured (or all rejected as unsafe)");
         return -1;
     }
 
+    // Events are already whitelisted in config_load (is_valid_event_name),
+    // so it is safe to interpolate them into a shell command.
     std::string events_arg;
     for (size_t i = 0; i < cfg.events.size(); ++i) {
         if (i) events_arg += ",";

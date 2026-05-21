@@ -53,47 +53,77 @@ void migrate_one(Region& region, MigCtx& ctx) {
         return;
     }
 
-    // Clip the region to a migratable VMA. Skip if no overlap.
-    uint64_t r_start = region.start_addr;
-    uint64_t r_end   = r_start + ctx.region_size;
-    uint64_t c_start = 0, c_end = 0;
-    if (!clip_to_migratable_vma(*ctx.vmas, r_start, r_end, c_start, c_end)) {
+    const uint64_t pgsz = ctx.page_size;
+    const uint64_t r_start = region.start_addr;
+    const uint64_t r_end   = r_start + ctx.region_size;
+
+    // A region may straddle multiple VMAs; migrate each migratable
+    // sub-range independently.
+    auto ranges = clip_to_migratable_vmas(*ctx.vmas, r_start, r_end);
+    if (ranges.empty()) {
         ctx.skipped_no_vma.fetch_add(1, std::memory_order_relaxed);
         return;
     }
 
-    const uint64_t pgsz = ctx.page_size;
-    const size_t num_pages = static_cast<size_t>((c_end - c_start) / pgsz);
-    if (num_pages == 0) return;
+    // Process pages in fixed-size chunks so we (a) bound peak memory
+    // per call and (b) re-check the per-window budget frequently.
+    constexpr size_t kChunkPages = 1024;
+    uint64_t region_pages_moved = 0;
 
-    std::vector<void*> pages(num_pages);
-    std::vector<int>   nodes(num_pages, target);
-    std::vector<int>   status(num_pages, -1);
+    for (const auto& seg : ranges) {
+        if (budget_exceeded(ctx)) break;
 
-    for (size_t i = 0; i < num_pages; ++i) {
-        pages[i] = reinterpret_cast<void*>(c_start + i * pgsz);
-    }
+        for (uint64_t off = seg.first; off < seg.second; off += kChunkPages * pgsz) {
+            if (budget_exceeded(ctx)) break;
 
-    long ret = move_pages(ctx.pid, num_pages,
-                          pages.data(), nodes.data(),
-                          status.data(), MPOL_MF_MOVE);
-    (void)ret;  // partial-success is communicated via status[]
+            uint64_t chunk_end = std::min<uint64_t>(off + kChunkPages * pgsz, seg.second);
+            size_t   n         = static_cast<size_t>((chunk_end - off) / pgsz);
+            if (n == 0) continue;
 
-    size_t moved = 0;
-    for (size_t i = 0; i < num_pages; ++i) {
-        if (status[i] >= 0) ++moved;
-    }
-    if (moved > 0) {
-        ctx.pages_moved.fetch_add(moved, std::memory_order_relaxed);
-        ctx.regions_moved.fetch_add(1, std::memory_order_relaxed);
-        if (target == ctx.hot_node) {
-            ctx.pages_promoted.fetch_add(moved, std::memory_order_relaxed);
-        } else {
-            ctx.pages_demoted.fetch_add(moved, std::memory_order_relaxed);
+            // Respect the global page cap.
+            uint64_t already = ctx.pages_moved.load(std::memory_order_relaxed);
+            if (already >= ctx.max_pages) break;
+            uint64_t remaining = ctx.max_pages - already;
+            if (n > remaining) n = static_cast<size_t>(remaining);
+            if (n == 0) break;
+
+            std::vector<void*> pages(n);
+            std::vector<int>   nodes(n, target);
+            std::vector<int>   status(n, -1);
+            for (size_t i = 0; i < n; ++i) {
+                pages[i] = reinterpret_cast<void*>(off + i * pgsz);
+            }
+
+            long ret = move_pages(ctx.pid, n,
+                                  pages.data(), nodes.data(),
+                                  status.data(), MPOL_MF_MOVE);
+
+            size_t moved = 0;
+            for (size_t i = 0; i < n; ++i) {
+                if (status[i] >= 0) ++moved;
+            }
+
+            if (moved > 0) {
+                ctx.pages_moved.fetch_add(moved, std::memory_order_relaxed);
+                if (target == ctx.hot_node)
+                    ctx.pages_promoted.fetch_add(moved, std::memory_order_relaxed);
+                else
+                    ctx.pages_demoted.fetch_add(moved, std::memory_order_relaxed);
+                region_pages_moved += moved;
+            }
+
+            // The whole-call return value is negative on outright syscall
+            // failure; non-negative means partial-success (per-page status
+            // is authoritative). Only count syscall failures as errors.
+            if (ret < 0) {
+                ctx.errors.fetch_add(1, std::memory_order_relaxed);
+            }
         }
+    }
+
+    if (region_pages_moved > 0) {
+        ctx.regions_moved.fetch_add(1, std::memory_order_relaxed);
         region.current_node = target;
-    } else if (ret < 0) {
-        ctx.errors.fetch_add(1, std::memory_order_relaxed);
     }
 }
 

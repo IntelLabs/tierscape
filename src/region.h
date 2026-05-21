@@ -47,7 +47,8 @@ public:
     size_t   tracked_count() const;
 
 private:
-    const uint64_t m_region_size;
+    // Not const: validated once in the ctor (zero -> 2 MiB default).
+    uint64_t m_region_size;
 
     mutable std::mutex m_bucket_mu;
     std::unordered_map<uint64_t, uint64_t> m_bucket;  // addr -> hotness

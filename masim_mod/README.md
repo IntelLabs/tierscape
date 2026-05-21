@@ -48,7 +48,7 @@ worker threads used for region initialization and for each phase's access loop.
 - If absent (first paragraph already looks like regions, i.e. contains a comma),
   `nr_threads` defaults to `1`. Existing single-threaded configs work unchanged.
 
-Example with 4 threads — see [`configs/stairs_4gb_20s_t4`](configs/stairs_4gb_20s_t4):
+Example with 64 threads — see [`configs/stairs_50gb_10s_t64`](configs/stairs_50gb_10s_t64):
 
 ```
 4
@@ -83,30 +83,25 @@ PHASE_THROUGHPUT ops=1,154,744,320 time_us=5,010,628 thp=230,459,000.35 ops/s th
 
 | Config | Total Memory | Regions | Threads | Duration | Purpose |
 |--------|-------------|---------|---------|----------|---------|
-| `test_tier_4gb_long` | 4 GB | 4 × 1 GB | 1 | ~4 min | Quick `tierscaped` validation |
-| `stairs_plot_1gb` | 4 GB | 4 × 1 GB | 1 | ~20 s | Smoke test |
-| `stairs_4gb_100s` | 4 GB | 4 × 1 GB | 1 | ~100 s | Stairs baseline |
-| `stairs_4gb_20s_t1` | 4 GB | 4 × 1 GB | 1 | ~20 s | MT baseline (1 thread) |
-| `stairs_4gb_20s_t4` | 4 GB | 4 × 1 GB | 4 | ~20 s | MT scaling test (4 threads) |
-| `stairs_100GB_10GB` | ~90 GB | 9 × 10 GB | 1 | ~8 s | Large-scale test |
-| `stairs_1TB_100g` | ~900 GB | 9 × 100 GB | 1 | minutes | Stress test |
+| `stairs_4gb_100s` | 4 GB | 4 × 1 GB | 1 | ~100 s | Default driver config (4 × 25 s phases) |
+| `stairs_4gb_20s_t1` | 4 GB | 4 × 1 GB | 1 | ~20 s | Fast smoke (4 × 5 s phases) |
+| `stairs_40gb_100s` | 40 GB | 4 × 10 GB | 1 | ~100 s | Larger-footprint validation |
+| `stairs_50gb_10s_t64` | 50 GB | varies | 64 | ~10 s | Multi-threaded stress |
 
 ## Multithreaded scaling test
 
-Bind CPU and memory to a single NUMA node and compare 1 vs 4 threads:
+Bind CPU and memory to a single NUMA node and compare 1 vs many threads:
 
 ```bash
 numactl -N 0 -m 0 ./masim configs/stairs_4gb_20s_t1
-numactl -N 0 -m 0 ./masim configs/stairs_4gb_20s_t4
+numactl -N 0 -m 0 ./masim configs/stairs_50gb_10s_t64
 ```
 
-Example results on node 0 (sequential RO, 4 KB stride, 1 GB regions):
-
-| Threads | Phase 0 thp (ops/s) | Phase 1 | Phase 2 | Phase 3 |
-|--------:|--------------------:|--------:|--------:|--------:|
-| 1       | 67,613,789          | 66,729,622 | 65,653,118 | 65,343,477 |
-| 4       | 230,459,000         | 227,277,288 | 224,445,302 | 223,093,664 |
-| Speedup | 3.41×               | 3.41×   | 3.42×   | 3.41×   |
+Throughput should scale roughly linearly with thread count up to
+the node's memory bandwidth ceiling. The exact numbers depend on
+the host — a representative single-NUMA run on a Xeon Gold 6554S
+showed ~3.4× scaling from 1 to 4 threads on 4 × 1 GiB sequential
+RO regions.
 
 ## Testing with tierscaped
 

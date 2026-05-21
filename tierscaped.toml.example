@@ -6,12 +6,13 @@ hot_node = 0
 cold_node = 1
 
 [sampling]
-# PEBS events: all loads, all stores, STLB miss loads, STLB miss stores
+# PEBS events. Symbolic names (validated via `perf list`) are
+# preferred and match the built-in defaults; raw hex form
+# (e.g. "cpu/event=0xd0,umask=0x81/ppu") also works on Intel CPUs
+# when the symbolic name is unavailable.
 events = [
-    "cpu/event=0xd0,umask=0x81/ppu",
-    "cpu/event=0xd0,umask=0x82/ppu",
-    "cpu/event=0xd0,umask=0x11/ppu",
-    "cpu/event=0xd0,umask=0x12/ppu",
+    "mem_inst_retired.all_loads:P",
+    "mem_inst_retired.all_stores:P",
 ]
 frequency = 10000
 window_seconds = 20

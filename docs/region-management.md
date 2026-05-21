@@ -75,6 +75,13 @@ hash-table operation (~10–100 ns).
 std::vector<Region> RegionManager::snapshot_and_swap();
 ```
 
+The returned vector contains **every region in persistent state**,
+not just the ones sampled this window. Regions that received
+samples carry their bucket count in `hotness`; regions that were
+silent this window appear with `hotness = 0`. This lets the
+classifier compute its percentile against the full tracked
+footprint (see [classification.md](classification.md#silent-regions-no-samples-this-window)).
+
 Atomic-ish drain:
 
 1. `std::unordered_map<uint64_t,uint64_t> drained;`
